@@ -4,7 +4,8 @@ import difflib
 import os
 
 # --- Load your main music collection CSV ---
-df = pd.read_csv("expanded_discogs_tracklists.csv", dtype=str).fillna("")
+df = pd.read_csv("expanded_discogs_tracklists.csv", encoding='latin1', dtype=str).fillna("")
+
 
 # --- Normalize data for fuzzy search ---
 def normalize(text):
