@@ -45,7 +45,10 @@ st.title("🎵 Music Collection Search")
 query = st.text_input("Search for a song or artist:")
 
 search_type = st.radio("Search by:", ["Song", "Artist"], horizontal=True)
-format_filter = st.multiselect("Filter by Format:", ["Album", "Single", "Video"], default=["Album", "Single", "Video"])
+# Define the available format options
+format_options = ["Album", "Single", "Video"]  # Add "Video" if you want that too
+selected_formats = st.multiselect(
+    "Filter by Format", options=format_options, default=format_options)
 
 if query:
     norm_query = normalize(query)
@@ -57,8 +60,10 @@ if query:
         matches = fuzzy_filter(norm_query, df['norm_artist'].unique())
         result = df[df['norm_artist'].isin(matches)]
 
-    if format_filter:
-        result = result[result["Format"].str.contains('|'.join(format_filter), case=False, na=False)]
+    if selected_formats:
+    result = result[
+        result["Format"].str.contains("|".join(selected_formats), case=False, na=False)]
+
 
     if not result.empty:
         for _, row in result.sort_values("Track Title").iterrows():
