@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 
 # Load the data
-df = pd.read_csv("expanded_discogs_tracklists.csv")
+df = pd.read_csv("expanded_discogs_tracklist.csv")
 
 # Standardize strings
 df["Artist"] = df["Artist"].astype(str)
