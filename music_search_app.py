@@ -68,7 +68,7 @@ if include_video:
 # Search results
 if query:
     if search_type == "Song Title":
-        result = df[df["track_title"].str.contains(query, case=False, na=False)]
+        result = df[df["Track Title"].str.contains(query, case=False, na=False)]
     else:
         result = df[df["artist"].str.contains(query, case=False, na=False)]
 
