@@ -171,13 +171,14 @@ if search_query:
                             except FileNotFoundError:
                                 st.info("No override file found to remove.")
 
-                # Tracklist table (no index column)
-                tracklist = group[[
-                    'Track Title', 'Artist', 'CD', 'Track Number', 'Format'
-                ]].rename(columns={
-                    'Track Title': 'Song',
-                    'CD': 'Disc',
-                    'Track Number': 'Track',
-                }).reset_index(drop=True)
+# Tracklist table (no index column)
+tracklist = group[[
+    'Track Title', 'Artist', 'CD', 'Track Number', 'Format'
+]].rename(columns={
+    'Track Title': 'Song',
+    'CD': 'Disc',
+    'Track Number': 'Track',
+}).reset_index(drop=True)
 
-                st.dataframe(tracklist, hide_index=True, use_container_width=True)
+st.table(tracklist)
+
