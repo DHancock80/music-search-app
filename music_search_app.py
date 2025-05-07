@@ -79,11 +79,17 @@ def fetch_discogs_cover(release_id):
 # Streamlit app
 st.title('🎵 Music Search App')
 
-# ✅ Lock the AgGrid table to full width to prevent shrinking from right side
+# ✅ Lock grid width + disable resizing & horizontal overflow
 st.markdown("""
     <style>
     .ag-theme-streamlit {
         width: 100% !important;
+    }
+    .ag-root-wrapper {
+        resize: none !important;
+    }
+    .ag-body-viewport {
+        overflow-x: hidden !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -181,7 +187,7 @@ if search_query:
                             except FileNotFoundError:
                                 st.info("No override file found to remove.")
 
-                # ✅ Tracklist table with AgGrid (auto-size + Disc/Track narrow columns + locked width)
+                # ✅ Tracklist table with AgGrid (auto-size + Disc/Track narrow columns + dynamic height)
                 tracklist = group[[
                     'Track Title', 'Artist', 'CD', 'Track Number', 'Format'
                 ]].rename(columns={
@@ -207,5 +213,6 @@ if search_query:
                     allow_unsafe_jscode=False,
                     theme='streamlit',
                     fit_columns_on_grid_load=True,
-                    use_container_width=True,  # ✅ NEW: force full width
+                    use_container_width=True,
+                    height=len(tracklist) * 35 + 50,  # ✅ Dynamic height to avoid empty space
                 )
