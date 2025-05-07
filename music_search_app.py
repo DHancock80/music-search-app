@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import re
 import requests
+import time  # ✅ for delay
 
 # Constants
 CSV_FILE = 'expanded_discogs_tracklist.csv'
@@ -119,8 +120,23 @@ if search_query:
             # ✅ Extra check: if cover is missing, empty, or NaN, fetch from Discogs
             if (pd.isna(cover) or str(cover).strip() == '') and pd.notna(release_id):
                 if release_id not in cover_cache:
+                    time.sleep(0.2)  # ✅ delay to avoid rate limit
                     cover = fetch_discogs_cover(release_id)
                     cover_cache[release_id] = cover
+
+                    # ✅ Save the fetched cover URL to cover_overrides.csv (if valid)
+                    if cover:
+                        new_entry = pd.DataFrame([{'release_id': release_id, 'cover_url': cover}])
+                        try:
+                            existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
+                            if 'release_id' not in existing.columns or 'cover_url' not in existing.columns:
+                                existing = pd.DataFrame(columns=['release_id', 'cover_url'])
+                            existing = existing[existing['release_id'] != release_id]
+                            updated = pd.concat([existing, new_entry], ignore_index=True)
+                        except FileNotFoundError:
+                            updated = new_entry
+                        updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
+
                 else:
                     cover = cover_cache[release_id]
             else:
@@ -171,7 +187,6 @@ if search_query:
                     with reset_col:
                         if st.button("Reset to original cover", key=f"reset_{release_id}"):
                             try:
-                                # ✅ Always attempt removal, even if no entry exists
                                 existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
                                 if 'release_id' not in existing.columns or 'cover_url' not in existing.columns:
                                     existing = pd.DataFrame(columns=['release_id', 'cover_url'])
@@ -181,7 +196,6 @@ if search_query:
                                 st.cache_data.clear()
                                 st.rerun()
                             except FileNotFoundError:
-                                # File didn't exist at all—just reload
                                 st.success("Cover override removed (if it existed). Reloading to apply changes...")
                                 st.cache_data.clear()
                                 st.rerun()
