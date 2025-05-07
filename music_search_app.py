@@ -2,77 +2,116 @@ import streamlit as st
 import pandas as pd
 import requests
 import os
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
 from io import BytesIO
 
-# Load Discogs token from Streamlit secrets
+# Load secrets (Discogs token)
 DISCOGS_TOKEN = st.secrets["discogs_token"]
-HEADERS = {"Authorization": f"Discogs token={DISCOGS_TOKEN}"}
 
-# Load CSV
+# Constants
+CSV_FILE = "expanded_discogs_tracklists.csv"
+COVER_OVERRIDE_FILE = "cover_overrides.csv"
+COVER_DIR = "cover_cache"
+
+# Ensure cover cache directory exists
+os.makedirs(COVER_DIR, exist_ok=True)
+
 @st.cache_data
 def load_data():
-    df = pd.read_csv("expanded_discogs_tracklists.csv")
-    df.columns = [col.strip() for col in df.columns]
+    df = pd.read_csv(CSV_FILE)
     return df
 
+@st.cache_data
+def load_cover_overrides():
+    if os.path.exists(COVER_OVERRIDE_FILE):
+        return pd.read_csv(COVER_OVERRIDE_FILE)
+    return pd.DataFrame(columns=["release_id", "image_url"])
+
+def save_cover_override(release_id, image_url):
+    overrides = load_cover_overrides()
+    new_entry = pd.DataFrame([[release_id, image_url]], columns=["release_id", "image_url"])
+    updated = pd.concat([overrides, new_entry], ignore_index=True)
+    updated.drop_duplicates(subset="release_id", keep="last", inplace=True)
+    updated.to_csv(COVER_OVERRIDE_FILE, index=False)
+
+@st.cache_data(show_spinner=False)
+def get_cover_image(release_id):
+    # Check for user override first
+    overrides = load_cover_overrides()
+    override_row = overrides[overrides["release_id"] == release_id]
+    if not override_row.empty:
+        return override_row.iloc[0]["image_url"]
+
+    # Check cache
+    local_path = os.path.join(COVER_DIR, f"{release_id}.jpg")
+    if os.path.exists(local_path):
+        return local_path
+
+    # Fetch from Discogs
+    url = f"https://api.discogs.com/releases/{release_id}?token={DISCOGS_TOKEN}"
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            data = response.json()
+            image_url = data.get("images", [{}])[0].get("uri")
+            if image_url:
+                img_data = requests.get(image_url).content
+                with open(local_path, "wb") as f:
+                    f.write(img_data)
+                return local_path
+    except:
+        pass
+
+    return None
+
+# UI Layout
+st.set_page_config(page_title="Music Collection Search", layout="wide")
+st.title("🎵 Music Collection Search")
+
+# Search options
+search_type = st.radio("Search by:", ["Artist", "Title", "Track Title"], horizontal=True)
+query = st.text_input("Enter your search:")
+
+# Load data
 df = load_data()
 
-# Search inputs
-st.title("Music Collection Search")
-
-col1, col2, col3 = st.columns(3)
-with col1:
-    query = st.text_input("Search by Song Title or Artist")
-with col2:
-    search_type = st.radio("Search by", ["Song Title", "Artist"], horizontal=True)
-with col3:
-    format_filter = st.radio("Filter by Format", ["All", "Album", "Single", "Video"], horizontal=True)
-
-# Filter based on inputs
+# Search logic
 if query:
-    if search_type == "Song Title":
-        result = df[df["track_title"].str.contains(query, case=False, na=False)]
+    if search_type == "Artist":
+        results = df[df["Artist"].str.contains(query, case=False, na=False)]
+    elif search_type == "Title":
+        results = df[df["Title"].str.contains(query, case=False, na=False)]
+    elif search_type == "Track Title":
+        results = df[df["Track Title"].str.contains(query, case=False, na=False)]
     else:
-        result = df[df["artist"].str.contains(query, case=False, na=False)]
+        results = pd.DataFrame()
 
-    if format_filter != "All":
-        result = result[result["format"].str.contains(format_filter, case=False, na=False)]
+    st.markdown(f"### Found {len(results)} result(s)")
 
-    st.write(f"### Results: {len(result)} matches")
-
-    for i, row in result.iterrows():
-        st.markdown(f"**{row['track_title']}** – *{row['title']}* ({row['artist']})")
-        st.text(f"Label: {row['label']} | Released: {row['released']} | CD: {row['cd']} | Track #: {row['track_number']}")
-
-        # Try loading from local cache
-        local_path = f"images/{row['release_id']}.jpg"
-        image_shown = False
-
-        if os.path.exists(local_path):
-            try:
-                st.image(local_path, width=150)
-                image_shown = True
-            except UnidentifiedImageError:
-                os.remove(local_path)
-
-        # If not in cache, try downloading from Discogs
-        if not image_shown:
-            response = requests.get(f"https://api.discogs.com/releases/{row['release_id']}", headers=HEADERS)
-            if response.status_code == 200:
-                data = response.json()
-                image_url = data.get("images", [{}])[0].get("uri")
-                if image_url:
-                    try:
-                        image_data = requests.get(image_url).content
-                        img = Image.open(BytesIO(image_data))
-                        st.image(img, width=150)
-
-                        # Save locally
-                        os.makedirs("images", exist_ok=True)
-                        with open(local_path, "wb") as f:
-                            f.write(image_data)
-                    except Exception as e:
-                        st.warning("Image failed to load.")
+    for _, row in results.iterrows():
+        st.markdown("---")
+        cols = st.columns([1, 3])
+        with cols[0]:
+            cover = get_cover_image(row["release_id"])
+            if cover:
+                try:
+                    st.image(cover, width=150)
+                except:
+                    st.warning("Invalid image format. You can override below.")
             else:
-                st.warning("Cover image not found.")
+                st.info("No cover image available.")
+
+        with cols[1]:
+            st.subheader(f"{row['Artist']} - {row['Title']}")
+            st.text(f"Track {row['Track Number']} on Disc {row['CD']}")
+            st.text(f"Label: {row['Label']} | Format: {row['Format']} | Released: {row['Released']}")
+            st.text(f"Track Title: {row['Track Title']}")
+
+            # Allow image override
+            with st.expander("Submit a new cover image URL"):
+                new_url = st.text_input(f"New cover URL for Release ID {row['release_id']}", key=row['release_id'])
+                if st.button("Submit URL", key=f"btn_{row['release_id']}"):
+                    save_cover_override(row['release_id'], new_url)
+                    st.success("Cover override saved. Refresh to see changes.")
+else:
+    st.info("Enter a search term to begin.")
