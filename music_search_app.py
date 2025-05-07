@@ -114,9 +114,10 @@ if search_query:
             first_row = group.iloc[0]
             album_title = first_row['Title']
             artist = first_row['Artist']
-            cover = first_row.get('cover_art_final') or first_row.get('cover_art')
-            
-            if pd.isna(cover) and pd.notna(release_id):
+            cover = first_row.get('cover_art_final')
+
+            # ✅ Extra check: if cover is missing, empty, or NaN, fetch from Discogs
+            if (pd.isna(cover) or str(cover).strip() == '') and pd.notna(release_id):
                 if release_id not in cover_cache:
                     cover = fetch_discogs_cover(release_id)
                     cover_cache[release_id] = cover
@@ -170,17 +171,20 @@ if search_query:
                     with reset_col:
                         if st.button("Reset to original cover", key=f"reset_{release_id}"):
                             try:
+                                # ✅ Always attempt removal, even if no entry exists
                                 existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
                                 if 'release_id' not in existing.columns or 'cover_url' not in existing.columns:
-                                    st.info("No override found to remove.")
-                                else:
-                                    updated = existing[existing['release_id'] != release_id]
-                                    updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
-                                    st.success("Cover override removed! Reloading to apply changes...")
-                                    st.cache_data.clear()
-                                    st.rerun()
+                                    existing = pd.DataFrame(columns=['release_id', 'cover_url'])
+                                updated = existing[existing['release_id'] != release_id]
+                                updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
+                                st.success("Cover override removed (if it existed). Reloading to apply changes...")
+                                st.cache_data.clear()
+                                st.rerun()
                             except FileNotFoundError:
-                                st.info("No override file found to remove.")
+                                # File didn't exist at all—just reload
+                                st.success("Cover override removed (if it existed). Reloading to apply changes...")
+                                st.cache_data.clear()
+                                st.rerun()
 
                 # ✅ Tracklist table using st.dataframe (auto-height + interactive)
                 tracklist = group[[
