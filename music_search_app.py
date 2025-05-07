@@ -142,19 +142,17 @@ if search_query:
                                 new_entry = pd.DataFrame([{'release_id': release_id, 'cover_url': new_url}])
                                 try:
                                     existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
-
-                                    # ✅ SAFETY CHECK: make sure required columns exist
                                     if 'release_id' not in existing.columns or 'cover_url' not in existing.columns:
                                         existing = pd.DataFrame(columns=['release_id', 'cover_url'])
-
-                                    # Replace any existing row for this release_id
                                     existing = existing[existing['release_id'] != release_id]
                                     updated = pd.concat([existing, new_entry], ignore_index=True)
                                 except FileNotFoundError:
                                     updated = new_entry
 
                                 updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
-                                st.success("Cover art override saved! Please reload the app to see changes.")
+                                st.success("Cover art override saved! Reloading to apply changes...")
+                                st.cache_data.clear()
+                                st.experimental_rerun()
                             else:
                                 st.error("Please enter a valid URL.")
 
@@ -162,13 +160,14 @@ if search_query:
                         if st.button("Reset to original cover", key=f"reset_{release_id}"):
                             try:
                                 existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
-                                # ✅ SAFETY CHECK: make sure required columns exist
                                 if 'release_id' not in existing.columns or 'cover_url' not in existing.columns:
                                     st.info("No override found to remove.")
                                 else:
                                     updated = existing[existing['release_id'] != release_id]
                                     updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
-                                    st.success("Cover override removed! Reload to see original cover.")
+                                    st.success("Cover override removed! Reloading to apply changes...")
+                                    st.cache_data.clear()
+                                    st.experimental_rerun()
                             except FileNotFoundError:
                                 st.info("No override file found to remove.")
 
