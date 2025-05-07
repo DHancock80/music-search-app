@@ -1,116 +1,110 @@
 import streamlit as st
 import pandas as pd
-import difflib
+import requests
 import os
 
-st.set_page_config(page_title="Music Collection Search", layout="wide")
-
-# Load main dataset
+# Load dataset
 df = pd.read_csv("expanded_discogs_tracklists.csv", dtype=str, encoding="ISO-8859-1").fillna("")
 
-# Load cover overrides if available
-COVER_OVERRIDE_FILE = "cover_overrides.csv"
-if os.path.exists(COVER_OVERRIDE_FILE):
-    cover_overrides = pd.read_csv(COVER_OVERRIDE_FILE, dtype=str).fillna("")
+# Load cover overrides
+overrides_file = "cover_overrides.csv"
+if os.path.exists(overrides_file):
+    overrides_df = pd.read_csv(overrides_file, dtype=str).fillna("")
 else:
-    cover_overrides = pd.DataFrame(columns=["release_id", "cover_url"])
+    overrides_df = pd.DataFrame(columns=["release_id", "image_url"])
 
-# Function to get cover art (with override)
-def get_cover_art(release_id, default_url):
-    override = cover_overrides[cover_overrides["release_id"] == str(release_id)]
-    if not override.empty:
-        return override["cover_url"].values[0]
-    return default_url
+# Function to get cover art (override → Discogs → fallback)
+@st.cache_data
+def get_cover_url(release_id):
+    # 1. Check override
+    override_row = overrides_df[overrides_df["release_id"] == str(release_id)]
+    if not override_row.empty:
+        return override_row.iloc[0]["image_url"]
 
-# Save cover override
-def save_cover_override(release_id, new_url):
-    global cover_overrides
-    cover_overrides = cover_overrides[cover_overrides["release_id"] != str(release_id)]
-    cover_overrides = pd.concat([cover_overrides, pd.DataFrame([{"release_id": release_id, "cover_url": new_url}])], ignore_index=True)
-    cover_overrides.to_csv(COVER_OVERRIDE_FILE, index=False)
+    # 2. Try Discogs API
+    DISCOGS_TOKEN = st.secrets["discogs_token"]
+    try:
+        response = requests.get(
+            f"https://api.discogs.com/releases/{release_id}",
+            headers={"Authorization": f"Discogs token={DISCOGS_TOKEN}"}
+        )
+        if response.status_code == 200:
+            data = response.json()
+            if "images" in data and data["images"]:
+                return data["images"][0]["uri"]
+    except Exception:
+        pass
 
+    # 3. Default fallback image
+    return "https://via.placeholder.com/100?text=No+Cover"
+
+# Title
 st.title("🎵 Music Collection Search")
 
-# Search input
+# Search type
 search_type = st.radio("Search by:", ["Song Title", "Artist"], horizontal=True)
-search_query = st.text_input("Enter your search query")
 
-st.markdown("**Filter by Format:**")
-col1, col2, col3 = st.columns(3)
+# Search input
+query = st.text_input("Enter search term:")
 
-with col1:
-    format_album = st.checkbox("Album", value=True)
-with col2:
-    format_single = st.checkbox("Single", value=True)
-with col3:
-    format_video = st.checkbox("Video", value=True)
+# Format filter as radio buttons side-by-side
+format_col1, format_col2, format_col3 = st.columns(3)
+with format_col1:
+    include_album = st.checkbox("Album", value=True, key="format_album")
+with format_col2:
+    include_single = st.checkbox("Single", value=True, key="format_single")
+with format_col3:
+    include_video = st.checkbox("Video", value=True, key="format_video")
 
 selected_formats = []
-if format_album:
+if include_album:
     selected_formats.append("Album")
-if format_single:
+if include_single:
     selected_formats.append("Single")
-if format_video:
+if include_video:
     selected_formats.append("Video")
 
-
-# Perform search if query is entered
-if search_query:
-    query = search_query.lower()
-    result = df.copy()
-
+# Search results
+if query:
     if search_type == "Song Title":
-        result = result[result["Track Title"].str.lower().str.contains(query, na=False)]
+        result = df[df["track_title"].str.contains(query, case=False, na=False)]
     else:
-        result = result[result["Artist"].str.lower().str.contains(query, na=False)]
+        result = df[df["artist"].str.contains(query, case=False, na=False)]
 
-    # Filter by format
+    # Apply format filter
     if selected_formats:
-        result = result[
-            result["Format"].str.contains("|".join(selected_formats), case=False, na=False)
-        ]
+        result = result[result["format"].isin(selected_formats)]
 
     # Display results
-    if not result.empty:
-        for _, row in result.iterrows():
-            with st.container():
-                st.subheader(f"{row['Track Title']} - {row['Artist']}")
-                st.markdown(f"**Album:** {row['Title']} ({row['Format']})")
-                st.markdown(f"**Label:** {row['Label']}")
-                st.markdown(f"**Released:** {row['Released']}")
-                st.markdown(f"**CD:** {row['CD']} | **Track #:** {row['Track Number']}")
+    for idx, row in result.iterrows():
+        st.markdown("---")
+        cols = st.columns([1, 3])
 
-                # Show cover
-                cover_url = get_cover_art(row["release_id"], f"https://api.discogs.com/releases/{row['release_id']}/images/0")
-                st.image(cover_url, width=200)
+        with cols[0]:
+            cover_url = get_cover_url(row["release_id"])
+            st.image(cover_url, width=100)
 
-                # Cover override
-                with st.expander("Suggest a better cover image"):
-                    new_url = st.text_input(f"Paste new image URL for release {row['release_id']}", key=f"url_{row['release_id']}")
-                    uploaded_file = st.file_uploader("...or upload an image", type=["png", "jpg", "jpeg"], key=f"upload_{row['release_id']}")
-                    if st.button("Submit Cover Update", key=f"submit_{row['release_id']}"):
-                        if new_url:
-                            save_cover_override(row["release_id"], new_url)
-                            st.success("Cover updated with URL.")
-                        elif uploaded_file:
-                            # This uploads to Streamlit's temporary location; in a real app, use cloud storage instead
-                            img_bytes = uploaded_file.read()
-                            temp_path = f"temp_cover_{row['release_id']}.jpg"
-                            with open(temp_path, "wb") as f:
-                                f.write(img_bytes)
-                            save_cover_override(row["release_id"], temp_path)
-                            st.success("Cover updated with uploaded image.")
+        with cols[1]:
+            st.markdown(f"**{row['track_title']}** by *{row['artist']}*")
+            st.markdown(f"*Album:* {row['album_title']}")
+            st.markdown(f"*Label:* {row['label']} | *Year:* {row['release_date']}")
+            st.markdown(f"CD {row['disc_number']} - Track {row['track_number']}")
 
-                st.markdown("---")
-    else:
-        st.warning("No results found. Try a different search or spelling.")
+            # Cover image override upload
+            with st.expander("Update cover art"):
+                new_url = st.text_input(
+                    f"Paste new image URL for release ID {row['release_id']}",
+                    key=f"url_input_{row['release_id']}"
+                )
+                if new_url:
+                    updated = overrides_df[overrides_df["release_id"] == row["release_id"]]
+                    if not updated.empty:
+                        overrides_df.loc[overrides_df["release_id"] == row["release_id"], "image_url"] = new_url
+                    else:
+                        overrides_df.loc[len(overrides_df.index)] = [row["release_id"], new_url]
+                    overrides_df.to_csv(overrides_file, index=False)
+                    st.success("Cover image updated — refresh to see change.")
 
-# Display search history (basic)
-if "history" not in st.session_state:
-    st.session_state.history = []
-if search_query and search_query not in st.session_state.history:
-    st.session_state.history.append(search_query)
-if st.session_state.history:
-    st.sidebar.subheader("🔍 Search History")
-    for past_query in reversed(st.session_state.history[-10:]):
-        st.sidebar.write(past_query)
+# Footer
+st.markdown("---")
+st.caption("Built with ❤️ using Streamlit | Discogs API Integration")
