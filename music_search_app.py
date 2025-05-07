@@ -18,6 +18,8 @@ def load_data():
         
         try:
             overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
+            # Deduplicate: keep latest override for each release_id
+            overrides = overrides.drop_duplicates(subset='release_id', keep='last')
             if 'release_id' in overrides.columns and 'cover_url' in overrides.columns:
                 df = df.merge(overrides, on='release_id', how='left', suffixes=('', '_override'))
                 df['cover_art_final'] = df['cover_url'].combine_first(df['cover_art'])
@@ -87,9 +89,13 @@ format_filter = st.selectbox('Format filter:', ['All', 'Album', 'Single'])
 
 if search_query:
     results = search(df, search_query, search_type, format_filter)
-    st.write(f"### Found {len(results)} result(s)")
 
-    if results.empty:
+    # ✅ New: drop duplicate rows just for counting results
+    unique_results = results.drop_duplicates()
+
+    st.write(f"### Found {len(unique_results)} result(s)")
+
+    if unique_results.empty:
         st.info("No results found.")
     else:
         cover_cache = {}
@@ -138,7 +144,6 @@ if search_query:
                                 new_entry = pd.DataFrame([{'release_id': release_id, 'cover_url': new_url}])
                                 try:
                                     existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
-                                    # Replace any existing row for this release_id
                                     existing = existing[existing['release_id'] != release_id]
                                     updated = pd.concat([existing, new_entry], ignore_index=True)
                                 except FileNotFoundError:
