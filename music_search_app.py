@@ -19,8 +19,8 @@ def load_data():
         try:
             overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
             # Deduplicate: keep latest override for each release_id
-            overrides = overrides.drop_duplicates(subset='release_id', keep='last')
             if 'release_id' in overrides.columns and 'cover_url' in overrides.columns:
+                overrides = overrides.drop_duplicates(subset='release_id', keep='last')
                 df = df.merge(overrides, on='release_id', how='left', suffixes=('', '_override'))
                 df['cover_art_final'] = df['cover_url'].combine_first(df['cover_art'])
             else:
@@ -90,9 +90,7 @@ format_filter = st.selectbox('Format filter:', ['All', 'Album', 'Single'])
 if search_query:
     results = search(df, search_query, search_type, format_filter)
 
-    # ✅ New: drop duplicate rows just for counting results
     unique_results = results.drop_duplicates()
-
     st.write(f"### Found {len(unique_results)} result(s)")
 
     if unique_results.empty:
@@ -144,10 +142,17 @@ if search_query:
                                 new_entry = pd.DataFrame([{'release_id': release_id, 'cover_url': new_url}])
                                 try:
                                     existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
+
+                                    # ✅ SAFETY CHECK: make sure required columns exist
+                                    if 'release_id' not in existing.columns or 'cover_url' not in existing.columns:
+                                        existing = pd.DataFrame(columns=['release_id', 'cover_url'])
+
+                                    # Replace any existing row for this release_id
                                     existing = existing[existing['release_id'] != release_id]
                                     updated = pd.concat([existing, new_entry], ignore_index=True)
                                 except FileNotFoundError:
                                     updated = new_entry
+
                                 updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
                                 st.success("Cover art override saved! Please reload the app to see changes.")
                             else:
@@ -157,11 +162,15 @@ if search_query:
                         if st.button("Reset to original cover", key=f"reset_{release_id}"):
                             try:
                                 existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
-                                updated = existing[existing['release_id'] != release_id]
-                                updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
-                                st.success("Cover override removed! Reload to see original cover.")
+                                # ✅ SAFETY CHECK: make sure required columns exist
+                                if 'release_id' not in existing.columns or 'cover_url' not in existing.columns:
+                                    st.info("No override found to remove.")
+                                else:
+                                    updated = existing[existing['release_id'] != release_id]
+                                    updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
+                                    st.success("Cover override removed! Reload to see original cover.")
                             except FileNotFoundError:
-                                st.info("No override found to remove.")
+                                st.info("No override file found to remove.")
 
                 # Tracklist table (no index column)
                 tracklist = group[[
