@@ -5,6 +5,7 @@ import os
 
 # Load dataset
 df = pd.read_csv("expanded_discogs_tracklists.csv", dtype=str, encoding="ISO-8859-1").fillna("")
+st.write("CSV Columns:", df.columns.tolist())
 
 # Load cover overrides
 overrides_file = "cover_overrides.csv"
@@ -85,7 +86,7 @@ if query:
             st.image(cover_url, width=100)
 
         with cols[1]:
-            st.markdown(f"**{row['track_title']}** by *{row['artist']}*")
+            st.markdown(f"**{row['Track_Title']}** by *{row['artist']}*")
             st.markdown(f"*Album:* {row['album_title']}")
             st.markdown(f"*Label:* {row['label']} | *Year:* {row['release_date']}")
             st.markdown(f"CD {row['disc_number']} - Track {row['track_number']}")
