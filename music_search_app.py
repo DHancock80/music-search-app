@@ -6,7 +6,7 @@ import os
 st.set_page_config(page_title="Music Collection Search", layout="wide")
 
 # Load main dataset
-df = pd.read_csv("expanded_discogs_tracklists.csv", dtype=str, encoding="utf-8", errors="replace").fillna("")
+df = pd.read_csv("expanded_discogs_tracklists.csv", dtype=str, encoding="utf-8").fillna("")
 
 # Load cover overrides if available
 COVER_OVERRIDE_FILE = "cover_overrides.csv"
