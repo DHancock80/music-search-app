@@ -9,8 +9,8 @@ from datetime import datetime
 # Constants
 CSV_FILE = 'expanded_discogs_tracklist.csv'
 COVER_OVERRIDES_FILE = 'cover_overrides.csv'
-DISCOGS_API_TOKEN = st.secrets["DISCOGS_API_TOKEN"]  # 🔑 Securely loaded from Streamlit Secrets
-GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]            # 🔑 Securely loaded from Streamlit Secrets
+DISCOGS_API_TOKEN = st.secrets["DISCOGS_API_TOKEN"]
+GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 GITHUB_REPO = 'DHancock80/music-search-app'
 GITHUB_BRANCH = 'main'
 
@@ -78,7 +78,7 @@ def fetch_discogs_cover(release_id):
             if 'images' in data and len(data['images']) > 0:
                 return data['images'][0]['uri']
     except Exception as e:
-        st.write(f"Error fetching release {release_id}: {e}")
+        print(f"Error fetching release {release_id}: {e}")
     return None
 
 def upload_to_github(file_path, repo, token, branch, commit_message):
@@ -109,16 +109,12 @@ def upload_to_github(file_path, repo, token, branch, commit_message):
     response = requests.put(api_url, headers=headers, json=data)
     return response
 
-# Streamlit app
-st.title('🎵 Music Search App')
+# Clean page title (no emoji)
+st.title('Music Search App')
 
-# Debug expander
-with st.expander("📂 View current cover_overrides.csv (debugging)"):
-    try:
-        overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
-        st.dataframe(overrides)
-    except FileNotFoundError:
-        st.info("No cover_overrides.csv file found yet.")
+# Debug expander (optional logs here)
+with st.expander("🔧 Debug logs (cover sync info)"):
+    debug_log = st.empty()
 
 df = load_data()
 
@@ -139,6 +135,7 @@ if search_query:
         st.info("No results found.")
     else:
         cover_cache = {}
+        new_covers = []  # Collect new covers to sync at the end
         grouped = results.groupby('release_id')
 
         for release_id, group in grouped:
@@ -152,33 +149,7 @@ if search_query:
                     time.sleep(0.2)
                     cover = fetch_discogs_cover(release_id)
                     if cover:
-                        st.write(f"Fetched cover for release_id {release_id} ✅")
-                        new_entry = pd.DataFrame([{'release_id': release_id, 'cover_url': cover}])
-                        try:
-                            existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
-                            if 'release_id' not in existing.columns or 'cover_url' not in existing.columns:
-                                existing = pd.DataFrame(columns=['release_id', 'cover_url'])
-                            existing = existing[existing['release_id'] != release_id]
-                            updated = pd.concat([existing, new_entry], ignore_index=True)
-                        except FileNotFoundError:
-                            updated = new_entry
-
-                        updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
-                        # 🚀 Sync to GitHub
-                        commit_message = f"Auto-update cover_overrides.csv ({datetime.utcnow().isoformat()} UTC)"
-                        gh_response = upload_to_github(
-                            COVER_OVERRIDES_FILE,
-                            GITHUB_REPO,
-                            GITHUB_TOKEN,
-                            GITHUB_BRANCH,
-                            commit_message
-                        )
-                        if gh_response.status_code in [200, 201]:
-                            st.success("✅ cover_overrides.csv synced to GitHub.")
-                        else:
-                            st.error(f"❌ GitHub sync failed: {gh_response.status_code} - {gh_response.text}")
-                    else:
-                        st.write(f"Failed to fetch cover for release_id {release_id} ❌")
+                        new_covers.append({'release_id': release_id, 'cover_url': cover})
                     cover_cache[release_id] = cover
                 else:
                     cover = cover_cache[release_id]
@@ -276,3 +247,29 @@ if search_query:
                     use_container_width=True,
                     hide_index=True,
                 )
+
+        # After all fetches are done: save once & sync to GitHub
+        if new_covers:
+            try:
+                existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
+                if 'release_id' not in existing.columns or 'cover_url' not in existing.columns:
+                    existing = pd.DataFrame(columns=['release_id', 'cover_url'])
+                for entry in new_covers:
+                    existing = existing[existing['release_id'] != entry['release_id']]
+                    existing = pd.concat([existing, pd.DataFrame([entry])], ignore_index=True)
+            except FileNotFoundError:
+                existing = pd.DataFrame(new_covers)
+
+            existing.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
+            commit_message = f"Batch sync cover_overrides.csv ({datetime.utcnow().isoformat()} UTC)"
+            gh_response = upload_to_github(
+                COVER_OVERRIDES_FILE,
+                GITHUB_REPO,
+                GITHUB_TOKEN,
+                GITHUB_BRANCH,
+                commit_message
+            )
+            if gh_response.status_code in [200, 201]:
+                debug_log.info("✅ cover_overrides.csv synced to GitHub (batch update).")
+            else:
+                debug_log.warning(f"⚠️ GitHub sync failed: {gh_response.status_code} - {gh_response.text}")
