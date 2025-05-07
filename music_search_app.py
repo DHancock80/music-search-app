@@ -180,5 +180,8 @@ if search_query:
                     'Track Number': 'Track',
                 }).reset_index(drop=True)
 
-                st.table(tracklist.set_index(pd.Index([''] * len(tracklist))))
+                # Dynamically set height: ~35 pixels per row to avoid scrolling
+                num_rows = len(tracklist)
+                height = 35 * (num_rows + 1)
 
+                st.dataframe(tracklist, hide_index=True, use_container_width=True, height=height)
