@@ -9,11 +9,8 @@ from datetime import datetime
 # Constants
 CSV_FILE = 'expanded_discogs_tracklist.csv'
 COVER_OVERRIDES_FILE = 'cover_overrides.csv'
-DISCOGS_API_URL = 'https://api.discogs.com/releases/'
-DISCOGS_API_TOKEN = st.secrets["DISCOGS_API_TOKEN"]  # 🔑 Paste your Discogs token here
-
-# GitHub settings
-GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]  # 🔑 Paste your GitHub personal access token here
+DISCOGS_API_TOKEN = st.secrets["DISCOGS_API_TOKEN"]  # 🔑 Securely loaded from Streamlit Secrets
+GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]            # 🔑 Securely loaded from Streamlit Secrets
 GITHUB_REPO = 'DHancock80/music-search-app'
 GITHUB_BRANCH = 'main'
 
@@ -75,7 +72,7 @@ def search(df, query, search_type, format_filter):
 def fetch_discogs_cover(release_id):
     headers = {"Authorization": f"Discogs token={DISCOGS_API_TOKEN}"}
     try:
-        response = requests.get(f"{DISCOGS_API_URL}{release_id}", headers=headers)
+        response = requests.get(f"https://api.discogs.com/releases/{release_id}", headers=headers)
         if response.status_code == 200:
             data = response.json()
             if 'images' in data and len(data['images']) > 0:
@@ -150,7 +147,6 @@ if search_query:
             artist = first_row['Artist']
             cover = first_row.get('cover_art_final')
 
-            # Check if cover is missing
             if (pd.isna(cover) or str(cover).strip() == '') and pd.notna(release_id):
                 if release_id not in cover_cache:
                     time.sleep(0.2)
@@ -223,7 +219,6 @@ if search_query:
                                     updated = new_entry
 
                                 updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
-                                # 🚀 Sync to GitHub
                                 commit_message = f"Manual update cover_overrides.csv ({datetime.utcnow().isoformat()} UTC)"
                                 gh_response = upload_to_github(
                                     COVER_OVERRIDES_FILE,
@@ -249,7 +244,6 @@ if search_query:
                                     existing = pd.DataFrame(columns=['release_id', 'cover_url'])
                                 updated = existing[existing['release_id'] != release_id]
                                 updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
-                                # 🚀 Sync to GitHub
                                 commit_message = f"Reset cover_overrides.csv ({datetime.utcnow().isoformat()} UTC)"
                                 gh_response = upload_to_github(
                                     COVER_OVERRIDES_FILE,
