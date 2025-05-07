@@ -8,7 +8,7 @@ import time
 CSV_FILE = 'expanded_discogs_tracklist.csv'
 COVER_OVERRIDES_FILE = 'cover_overrides.csv'
 DISCOGS_API_URL = 'https://api.discogs.com/releases/'
-DISCOGS_API_TOKEN = 'brdzasJrMdwCKAnfFLdMEGYPnzriaRYmjLSDkebt'  # 🔑 Paste your real token here
+DISCOGS_API_TOKEN = 'YOUR_ACTUAL_TOKEN_HERE'  # 🔑 Paste your real token here
 
 @st.cache_data
 def load_data():
@@ -93,6 +93,14 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 df = load_data()
+
+# ✅ 📂 Debug expander to show current cover_overrides.csv
+with st.expander("📂 View current cover_overrides.csv (debugging)"):
+    try:
+        overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
+        st.dataframe(overrides)
+    except FileNotFoundError:
+        st.info("No cover_overrides.csv file found yet.")
 
 if df.empty:
     st.stop()
