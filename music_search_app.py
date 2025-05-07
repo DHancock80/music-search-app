@@ -35,9 +35,18 @@ st.title("🎵 Music Collection Search")
 search_type = st.radio("Search by:", ["Song Title", "Artist"], horizontal=True)
 search_query = st.text_input("Enter your search query")
 
-# Format filter (multi-select checkboxes instead of dropdown)
-format_options = ["Album", "Single", "Video"]
-selected_formats = st.multiselect("Filter by Format", options=format_options, default=format_options)
+st.markdown("**Filter by Format:**")
+format_album = st.checkbox("Album", value=True)
+format_single = st.checkbox("Single", value=True)
+format_video = st.checkbox("Video", value=True)
+
+selected_formats = []
+if format_album:
+    selected_formats.append("Album")
+if format_single:
+    selected_formats.append("Single")
+if format_video:
+    selected_formats.append("Video")
 
 # Perform search if query is entered
 if search_query:
