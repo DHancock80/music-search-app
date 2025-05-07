@@ -180,4 +180,5 @@ if search_query:
                     'Track Number': 'Track',
                 }).reset_index(drop=True)
 
-                st.table(tracklist)
+                st.table(tracklist.set_index(pd.Index([''] * len(tracklist))))
+
