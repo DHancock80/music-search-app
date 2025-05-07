@@ -12,8 +12,8 @@ HEADERS = {"Authorization": f"Discogs token={DISCOGS_TOKEN}"}
 # Load CSV
 @st.cache_data
 def load_data():
-    df = pd.read_csv("collection.csv")
-    df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_").str.replace("#", "number")
+    df = pd.read_csv(st.secrets["data_csv"])
+    df.columns = [col.strip() for col in df.columns]
     return df
 
 df = load_data()
