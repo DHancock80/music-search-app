@@ -1,111 +1,99 @@
 import streamlit as st
 import pandas as pd
 import requests
+from PIL import Image
+from io import BytesIO
 import os
+import json
 
-# Load dataset
-df = pd.read_csv("expanded_discogs_tracklists.csv", dtype=str, encoding="ISO-8859-1").fillna("")
-st.write("CSV Columns:", df.columns.tolist())
+# Load Discogs API token from Streamlit secrets
+DISCOGS_TOKEN = st.secrets["discogs_token"]
 
-# Load cover overrides
-overrides_file = "cover_overrides.csv"
-if os.path.exists(overrides_file):
-    overrides_df = pd.read_csv(overrides_file, dtype=str).fillna("")
+# Load the CSV file and normalize column names
+# We assume the file uses ISO-8859-1 encoding due to prior issues
+csv_file = "expanded_discogs_tracklists.csv"
+df = pd.read_csv(csv_file, dtype=str, encoding="ISO-8859-1").fillna("")
+df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")  # normalize column names
+
+# In-memory cover art override cache (could be stored remotely later)
+COVER_ART_CACHE_FILE = "cover_art_cache.json"
+
+if os.path.exists(COVER_ART_CACHE_FILE):
+    with open(COVER_ART_CACHE_FILE, "r") as f:
+        cover_art_overrides = json.load(f)
 else:
-    overrides_df = pd.DataFrame(columns=["release_id", "image_url"])
+    cover_art_overrides = {}
 
-# Function to get cover art (override → Discogs → fallback)
-@st.cache_data
-def get_cover_url(release_id):
-    # 1. Check override
-    override_row = overrides_df[overrides_df["release_id"] == str(release_id)]
-    if not override_row.empty:
-        return override_row.iloc[0]["image_url"]
+# Sidebar Filters
+search_type = st.radio("Search by:", ["Song Title", "Artist"], horizontal=True)
+query = st.text_input(f"Enter {search_type}")
 
-    # 2. Try Discogs API
-    DISCOGS_TOKEN = st.secrets["discogs_token"]
+# Format filters as horizontal checkboxes
+format_options = ["album", "single", "video"]
+st.markdown("**Filter by Format:**")
+cols = st.columns(len(format_options))
+selected_formats = []
+for i, fmt in enumerate(format_options):
+    if cols[i].checkbox(fmt.capitalize(), value=True):
+        selected_formats.append(fmt)
+
+# Helper: Get Discogs cover art by release_id
+def fetch_cover_art(release_id):
+    url = f"https://api.discogs.com/releases/{release_id}?token={DISCOGS_TOKEN}"
     try:
-        response = requests.get(
-            f"https://api.discogs.com/releases/{release_id}",
-            headers={"Authorization": f"Discogs token={DISCOGS_TOKEN}"}
-        )
+        response = requests.get(url)
         if response.status_code == 200:
             data = response.json()
-            if "images" in data and data["images"]:
-                return data["images"][0]["uri"]
-    except Exception:
-        pass
+            return data.get("images", [{}])[0].get("uri")
+    except Exception as e:
+        print(f"Discogs API error for release {release_id}: {e}")
+    return None
 
-    # 3. Default fallback image
-    return "https://via.placeholder.com/100?text=No+Cover"
-
-# Title
-st.title("🎵 Music Collection Search")
-
-# Search type
-search_type = st.radio("Search by:", ["Song Title", "Artist"], horizontal=True)
-
-# Search input
-query = st.text_input("Enter search term:")
-
-# Format filter as radio buttons side-by-side
-format_col1, format_col2, format_col3 = st.columns(3)
-with format_col1:
-    include_album = st.checkbox("Album", value=True, key="format_album")
-with format_col2:
-    include_single = st.checkbox("Single", value=True, key="format_single")
-with format_col3:
-    include_video = st.checkbox("Video", value=True, key="format_video")
-
-selected_formats = []
-if include_album:
-    selected_formats.append("Album")
-if include_single:
-    selected_formats.append("Single")
-if include_video:
-    selected_formats.append("Video")
-
-# Search results
+# Perform search if query is entered
 if query:
     if search_type == "Song Title":
-        result = df[df["Track Title"].str.contains(query, case=False, na=False)]
+        result = df[df["track_title"].str.contains(query, case=False, na=False)]
     else:
         result = df[df["artist"].str.contains(query, case=False, na=False)]
 
-    # Apply format filter
     if selected_formats:
-        result = result[result["format"].isin(selected_formats)]
+        result = result[result["format"].str.lower().isin(selected_formats)]
 
-    # Display results
-    for idx, row in result.iterrows():
+    # Group results by release
+    grouped = result.groupby("release_id")
+    for release_id, group in grouped:
+        release_info = group.iloc[0]
+
         st.markdown("---")
-        cols = st.columns([1, 3])
 
-        with cols[0]:
-            cover_url = get_cover_url(row["release_id"])
-            st.image(cover_url, width=100)
+        # Cover art handling
+        cover_url = cover_art_overrides.get(release_id)
+        if not cover_url:
+            cover_url = fetch_cover_art(release_id)
+            if cover_url:
+                cover_art_overrides[release_id] = cover_url
+                with open(COVER_ART_CACHE_FILE, "w") as f:
+                    json.dump(cover_art_overrides, f)
 
-        with cols[1]:
-            st.markdown(f"**{row['Track_Title']}** by *{row['artist']}*")
-            st.markdown(f"*Album:* {row['album_title']}")
-            st.markdown(f"*Label:* {row['label']} | *Year:* {row['release_date']}")
-            st.markdown(f"CD {row['disc_number']} - Track {row['track_number']}")
+        if cover_url:
+            st.image(cover_url, width=150)
+        else:
+            st.text("No cover art available")
 
-            # Cover image override upload
-            with st.expander("Update cover art"):
-                new_url = st.text_input(
-                    f"Paste new image URL for release ID {row['release_id']}",
-                    key=f"url_input_{row['release_id']}"
-                )
-                if new_url:
-                    updated = overrides_df[overrides_df["release_id"] == row["release_id"]]
-                    if not updated.empty:
-                        overrides_df.loc[overrides_df["release_id"] == row["release_id"], "image_url"] = new_url
-                    else:
-                        overrides_df.loc[len(overrides_df.index)] = [row["release_id"], new_url]
-                    overrides_df.to_csv(overrides_file, index=False)
-                    st.success("Cover image updated — refresh to see change.")
+        # Display tracklist for this release
+        st.markdown(f"**{release_info['title']}** by **{release_info['artist']}**")
+        st.markdown(f"Label: {release_info['label']}  ")
+        st.markdown(f"Released: {release_info['released']}  ")
+        st.markdown("**Tracklist:**")
 
-# Footer
-st.markdown("---")
-st.caption("Built with ❤️ using Streamlit | Discogs API Integration")
+        for _, track in group.iterrows():
+            st.markdown(f"{track['cd']} - Track {track['track_number']}: {track['track_title']}")
+
+        # Option to update cover art
+        with st.expander("Suggest new cover image"):
+            new_url = st.text_input(f"Paste new image URL for release {release_id}", key=f"url_{release_id}")
+            if new_url:
+                cover_art_overrides[release_id] = new_url
+                with open(COVER_ART_CACHE_FILE, "w") as f:
+                    json.dump(cover_art_overrides, f)
+                st.success("New cover art URL saved.")
