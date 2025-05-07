@@ -12,7 +12,7 @@ HEADERS = {"Authorization": f"Discogs token={DISCOGS_TOKEN}"}
 # Load CSV
 @st.cache_data
 def load_data():
-    df = pd.read_csv(st.secrets["data_csv"])
+    df = pd.read_csv("expanded_discogs_tracklists.csv")
     df.columns = [col.strip() for col in df.columns]
     return df
 
