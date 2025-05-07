@@ -2,12 +2,13 @@ import streamlit as st
 import pandas as pd
 import re
 import requests
-import time  # ✅ for delay
+import time
 
 # Constants
 CSV_FILE = 'expanded_discogs_tracklist.csv'
 COVER_OVERRIDES_FILE = 'cover_overrides.csv'
 DISCOGS_API_URL = 'https://api.discogs.com/releases/'
+DISCOGS_API_TOKEN = 'brdzasJrMdwCKAnfFLdMEGYPnzriaRYmjLSDkebt'  # 🔑 Paste your real token here
 
 @st.cache_data
 def load_data():
@@ -66,14 +67,15 @@ def search(df, query, search_type, format_filter):
     return results
 
 def fetch_discogs_cover(release_id):
+    headers = {"Authorization": f"Discogs token={DISCOGS_API_TOKEN}"}
     try:
-        response = requests.get(f"{DISCOGS_API_URL}{release_id}")
+        response = requests.get(f"{DISCOGS_API_URL}{release_id}", headers=headers)
         if response.status_code == 200:
             data = response.json()
             if 'images' in data and len(data['images']) > 0:
                 return data['images'][0]['uri']
-    except Exception:
-        pass
+    except Exception as e:
+        st.write(f"Error fetching release {release_id}: {e}")
     return None
 
 # Streamlit app
@@ -122,10 +124,9 @@ if search_query:
                 if release_id not in cover_cache:
                     time.sleep(0.2)  # ✅ delay to avoid rate limit
                     cover = fetch_discogs_cover(release_id)
-                    cover_cache[release_id] = cover
-
-                    # ✅ Save the fetched cover URL to cover_overrides.csv (if valid)
                     if cover:
+                        st.write(f"Fetched cover for release_id {release_id} ✅")
+                        # ✅ Save the fetched cover URL to cover_overrides.csv
                         new_entry = pd.DataFrame([{'release_id': release_id, 'cover_url': cover}])
                         try:
                             existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
@@ -136,7 +137,9 @@ if search_query:
                         except FileNotFoundError:
                             updated = new_entry
                         updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
-
+                    else:
+                        st.write(f"Failed to fetch cover for release_id {release_id} ❌ (will try again later)")
+                    cover_cache[release_id] = cover
                 else:
                     cover = cover_cache[release_id]
             else:
