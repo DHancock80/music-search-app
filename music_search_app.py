@@ -27,6 +27,7 @@ else:
 # Sidebar Filters
 search_type = st.radio("Search by:", ["Song Title", "Artist"], horizontal=True)
 query = st.text_input(f"Enter {search_type}")
+st.write("You searched for:", query)
 
 # Format filters as horizontal checkboxes
 format_options = ["album", "single", "video"]
