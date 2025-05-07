@@ -1,117 +1,111 @@
 import streamlit as st
 import pandas as pd
-import requests
-import os
-from PIL import Image
-from io import BytesIO
-
-# Load secrets (Discogs token)
-DISCOGS_TOKEN = st.secrets["discogs_token"]
+import re
 
 # Constants
-CSV_FILE = "expanded_discogs_tracklists.csv"
-COVER_OVERRIDE_FILE = "cover_overrides.csv"
-COVER_DIR = "cover_cache"
-
-# Ensure cover cache directory exists
-os.makedirs(COVER_DIR, exist_ok=True)
+CSV_FILE = 'expanded_discogs_tracklist.csv'
+COVER_OVERRIDES_FILE = 'cover_overrides.csv'
 
 @st.cache_data
 def load_data():
-    df = pd.read_csv(CSV_FILE)
+    try:
+        df = pd.read_csv(CSV_FILE, encoding='latin1')
+        # Load cover overrides if available
+        try:
+            overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
+            if 'release_id' in overrides.columns and 'cover_url' in overrides.columns:
+                df = df.merge(overrides, on='release_id', how='left')
+                df['cover_art'] = df['cover_url'].combine_first(df['cover_art'])
+        except FileNotFoundError:
+            st.warning("Cover overrides file not found. Proceeding without overrides.")
+    except Exception as e:
+        st.error(f"Error loading the CSV file: {e}")
+        df = pd.DataFrame()  # Return empty DataFrame on error
     return df
 
-@st.cache_data
-def load_cover_overrides():
-    if os.path.exists(COVER_OVERRIDE_FILE):
-        return pd.read_csv(COVER_OVERRIDE_FILE)
-    return pd.DataFrame(columns=["release_id", "image_url"])
+def clean_artist_name(artist):
+    if pd.isna(artist):
+        return ''
+    # Lowercase, remove special characters, handle feat./ft./&/, variations
+    artist = artist.lower()
+    artist = re.sub(r'[\*\(\)\[\]#]', '', artist)
+    artist = re.sub(r'\s*(feat\.|ft\.|featuring)\s*', ' ', artist)
+    artist = artist.replace('&', ' ').replace(',', ' ')
+    artist = re.sub(r'\s+', ' ', artist).strip()
+    return artist
 
-def save_cover_override(release_id, image_url):
-    overrides = load_cover_overrides()
-    new_entry = pd.DataFrame([[release_id, image_url]], columns=["release_id", "image_url"])
-    updated = pd.concat([overrides, new_entry], ignore_index=True)
-    updated.drop_duplicates(subset="release_id", keep="last", inplace=True)
-    updated.to_csv(COVER_OVERRIDE_FILE, index=False)
+def fuzzy_match(query, target):
+    # Simple fuzzy match: check if query is in target with minor typo tolerance
+    return query in target or re.sub(r'\s+', '', query) in re.sub(r'\s+', '', target)
 
-@st.cache_data(show_spinner=False)
-def get_cover_image(release_id):
-    # Check for user override first
-    overrides = load_cover_overrides()
-    override_row = overrides[overrides["release_id"] == release_id]
-    if not override_row.empty:
-        return override_row.iloc[0]["image_url"]
+def search(df, query, search_type, format_filter):
+    if df.empty:
+        return df  # Return empty if no data loaded
+    
+    query = query.lower().strip()
+    results = df.copy()
 
-    # Check cache
-    local_path = os.path.join(COVER_DIR, f"{release_id}.jpg")
-    if os.path.exists(local_path):
-        return local_path
+    if search_type == 'Song Title':
+        results = results[results['track_title'].str.lower().str.contains(query, na=False)]
+    elif search_type == 'Artist':
+        results['artist_clean'] = results['artist'].apply(clean_artist_name)
+        results = results[results['artist_clean'].str.contains(query, na=False)]
+    elif search_type == 'Album':
+        results = results[results['album'].str.lower().str.contains(query, na=False)]
 
-    # Fetch from Discogs
-    url = f"https://api.discogs.com/releases/{release_id}?token={DISCOGS_TOKEN}"
-    try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            data = response.json()
-            image_url = data.get("images", [{}])[0].get("uri")
-            if image_url:
-                img_data = requests.get(image_url).content
-                with open(local_path, "wb") as f:
-                    f.write(img_data)
-                return local_path
-    except:
-        pass
+    if format_filter != 'All':
+        results = results[results['format'].str.lower() == format_filter.lower()]
 
-    return None
+    return results
 
-# UI Layout
-st.set_page_config(page_title="Music Collection Search", layout="wide")
-st.title("🎵 Music Collection Search")
+# Streamlit app
+st.title('🎵 Music Search App')
 
-# Search options
-search_type = st.radio("Search by:", ["Artist", "Title", "Track Title"], horizontal=True)
-query = st.text_input("Enter your search:")
-
-# Load data
 df = load_data()
 
-# Search logic
-if query:
-    if search_type == "Artist":
-        results = df[df["Artist"].str.contains(query, case=False, na=False)]
-    elif search_type == "Title":
-        results = df[df["Title"].str.contains(query, case=False, na=False)]
-    elif search_type == "Track Title":
-        results = df[df["Track Title"].str.contains(query, case=False, na=False)]
-    else:
-        results = pd.DataFrame()
+if df.empty:
+    st.stop()
 
-    st.markdown(f"### Found {len(results)} result(s)")
+search_query = st.text_input('Enter your search:', '')
+search_type = st.radio('Search by:', ['Song Title', 'Artist', 'Album'])
+format_filter = st.selectbox('Format filter:', ['All', 'Album', 'Single'])
 
+if search_query:
+    results = search(df, search_query, search_type, format_filter)
+    st.write(f"### Found {len(results)} results")
+    
     for _, row in results.iterrows():
-        st.markdown("---")
-        cols = st.columns([1, 3])
-        with cols[0]:
-            cover = get_cover_image(row["release_id"])
-            if cover:
-                try:
-                    st.image(cover, width=150)
-                except:
-                    st.warning("Invalid image format. You can override below.")
-            else:
-                st.info("No cover image available.")
+        st.subheader(f"{row['track_title']} - {row['artist']}")
+        st.write(f"**Album:** {row['album']}")
+        st.write(f"**Disc:** {row.get('disc_number', 'N/A')} | **Track:** {row.get('track_number', 'N/A')}")
+        st.write(f"**Format:** {row['format']}")
+        
+        if pd.notna(row.get('cover_art')):
+            st.image(row['cover_art'], caption='Cover Art', use_column_width=True)
+        else:
+            st.text('No cover art available.')
 
-        with cols[1]:
-            st.subheader(f"{row['Artist']} - {row['Title']}")
-            st.text(f"Track {row['Track Number']} on Disc {row['CD']}")
-            st.text(f"Label: {row['Label']} | Format: {row['Format']} | Released: {row['Released']}")
-            st.text(f"Track Title: {row['Track Title']}")
+# Optional: File uploader for cover art corrections
+st.write("---")
+st.write("### Submit cover art correction")
 
-            # Allow image override
-            with st.expander("Submit a new cover image URL"):
-                new_url = st.text_input(f"New cover URL for Release ID {row['release_id']}", key=row['release_id'])
-                if st.button("Submit URL", key=f"btn_{row['release_id']}"):
-                    save_cover_override(row['release_id'], new_url)
-                    st.success("Cover override saved. Refresh to see changes.")
-else:
-    st.info("Enter a search term to begin.")
+uploaded_file = st.file_uploader("Upload new cover art", type=["png", "jpg", "jpeg"])
+cover_url = st.text_input("Or paste an image URL")
+release_id = st.text_input("Enter the release ID to update")
+
+if (uploaded_file or cover_url) and release_id:
+    if uploaded_file:
+        st.warning("Uploading images directly is not yet supported in this simple app version. Please use a URL for now.")
+    if cover_url:
+        try:
+            # Append the new override to the CSV
+            new_entry = pd.DataFrame([{'release_id': release_id, 'cover_url': cover_url}])
+            try:
+                existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
+                updated = pd.concat([existing, new_entry], ignore_index=True)
+            except FileNotFoundError:
+                updated = new_entry
+            updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
+            st.success("Cover art override saved! Please reload the app to see changes.")
+        except Exception as e:
+            st.error(f"Failed to save override: {e}")
