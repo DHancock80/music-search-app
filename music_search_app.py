@@ -152,7 +152,7 @@ if search_query:
                                 updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
                                 st.success("Cover art override saved! Reloading to apply changes...")
                                 st.cache_data.clear()
-                                st.experimental_rerun()
+                                st.rerun()
                             else:
                                 st.error("Please enter a valid URL.")
 
@@ -167,7 +167,7 @@ if search_query:
                                     updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
                                     st.success("Cover override removed! Reloading to apply changes...")
                                     st.cache_data.clear()
-                                    st.experimental_rerun()
+                                    st.rerun()
                             except FileNotFoundError:
                                 st.info("No override file found to remove.")
 
