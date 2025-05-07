@@ -2,100 +2,77 @@ import streamlit as st
 import pandas as pd
 import requests
 import os
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from io import BytesIO
 
 # Load Discogs token from Streamlit secrets
 DISCOGS_TOKEN = st.secrets["discogs_token"]
+HEADERS = {"Authorization": f"Discogs token={DISCOGS_TOKEN}"}
 
-# Load CSV and clean up column names and data
-csv_file = "expanded_discogs_tracklists.csv"
-df = pd.read_csv(csv_file, dtype=str, encoding="ISO-8859-1").fillna("")
+# Load CSV
+@st.cache_data
+def load_data():
+    df = pd.read_csv("collection.csv")
+    df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_").str.replace("#", "number")
+    return df
 
-# Normalize column names
-# e.g., 'Track Number' or 'Track\nNumber' -> 'track_number'
-df.columns = df.columns.str.strip().str.lower().str.replace(r"\s+", "_", regex=True)
+df = load_data()
 
-# Strip whitespace from all string values
-df = df.applymap(lambda x: x.strip() if isinstance(x, str) else x)
+# Search inputs
+st.title("Music Collection Search")
 
-# Check columns after cleaning
-# st.write("Cleaned column names:", list(df.columns))
+col1, col2, col3 = st.columns(3)
+with col1:
+    query = st.text_input("Search by Song Title or Artist")
+with col2:
+    search_type = st.radio("Search by", ["Song Title", "Artist"], horizontal=True)
+with col3:
+    format_filter = st.radio("Filter by Format", ["All", "Album", "Single", "Video"], horizontal=True)
 
-# Set page title
-st.set_page_config(page_title="Music Collection Search", layout="wide")
-st.title("Search Your Music Collection")
-
-# Sidebar filters
-search_type = st.radio("Search by:", ["Song Title", "Artist", "Album Title"])
-query = st.text_input("Enter your search:")
-
-format_choice = st.radio("Filter by Format", ["Album", "Single", "Video"], horizontal=True)
-
-# Main search logic
+# Filter based on inputs
 if query:
-    query = query.lower()
-
     if search_type == "Song Title":
-        result = df[df["track_title"].str.lower().str.contains(query, na=False)]
-    elif search_type == "Artist":
-        result = df[df["artist"].str.lower().str.contains(query, na=False)]
+        result = df[df["track_title"].str.contains(query, case=False, na=False)]
     else:
-        result = df[df["title"].str.lower().str.contains(query, na=False)]
+        result = df[df["artist"].str.contains(query, case=False, na=False)]
 
-    result = result[result["format"].str.contains(format_choice, na=False, case=False)]
+    if format_filter != "All":
+        result = result[result["format"].str.contains(format_filter, case=False, na=False)]
 
-    if result.empty:
-        st.warning("No results found.")
-    else:
-        for _, row in result.iterrows():
-            release_id = row["release_id"]
-            track_title = row["track_title"]
-            album_title = row["title"]
-            artist = row["artist"]
-            label = row["label"]
-            release_date = row["released"]
-            cd_number = row["cd"]
-            track_number = row["track_number"]
+    st.write(f"### Results: {len(result)} matches")
 
-            st.markdown(f"### {track_title} — {artist}")
-            st.markdown(f"**Album:** {album_title}")
-            st.markdown(f"**Label:** {label}  ")
-            st.markdown(f"**Released:** {release_date} | CD: {cd_number}, Track: {track_number}")
+    for i, row in result.iterrows():
+        st.markdown(f"**{row['track_title']}** – *{row['title']}* ({row['artist']})")
+        st.text(f"Label: {row['label']} | Released: {row['released']} | CD: {row['cd']} | Track #: {row['track_number']}")
 
-            # Try cached cover art
-            local_path = f"cover_art/{release_id}.jpg"
-            if os.path.exists(local_path):
+        # Try loading from local cache
+        local_path = f"images/{row['release_id']}.jpg"
+        image_shown = False
+
+        if os.path.exists(local_path):
+            try:
                 st.image(local_path, width=150)
-            else:
-                # Try Discogs API
-                try:
-                    url = f"https://api.discogs.com/releases/{release_id}?token={DISCOGS_TOKEN}"
-                    response = requests.get(url)
-                    if response.status_code == 200:
-                        data = response.json()
-                        if "images" in data and data["images"]:
-                            image_url = data["images"][0]["uri"]
-                            img_data = requests.get(image_url).content
-                            os.makedirs("cover_art", exist_ok=True)
-                            with open(local_path, "wb") as f:
-                                f.write(img_data)
-                            st.image(local_path, width=150)
-                        else:
-                            st.info("No image available.")
-                    else:
-                        st.info("Discogs API error.")
-                except Exception as e:
-                    st.warning(f"Error fetching image: {e}")
+                image_shown = True
+            except UnidentifiedImageError:
+                os.remove(local_path)
 
-            # User correction UI
-            new_url = st.text_input(f"Paste new image URL for release {release_id}", key=f"url_{release_id}")
-            if new_url:
-                try:
-                    img_data = requests.get(new_url).content
-                    with open(local_path, "wb") as f:
-                        f.write(img_data)
-                    st.success("Image updated!")
-                    st.image(local_path, width=150)
-                except Exception as e:
-                    st.error(f"Failed to load image from URL: {e}")
+        # If not in cache, try downloading from Discogs
+        if not image_shown:
+            response = requests.get(f"https://api.discogs.com/releases/{row['release_id']}", headers=HEADERS)
+            if response.status_code == 200:
+                data = response.json()
+                image_url = data.get("images", [{}])[0].get("uri")
+                if image_url:
+                    try:
+                        image_data = requests.get(image_url).content
+                        img = Image.open(BytesIO(image_data))
+                        st.image(img, width=150)
+
+                        # Save locally
+                        os.makedirs("images", exist_ok=True)
+                        with open(local_path, "wb") as f:
+                            f.write(image_data)
+                    except Exception as e:
+                        st.warning("Image failed to load.")
+            else:
+                st.warning("Cover image not found.")
