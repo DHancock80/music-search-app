@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import re
 import requests
-from st_aggrid import AgGrid, GridOptionsBuilder
 
 # Constants
 CSV_FILE = 'expanded_discogs_tracklist.csv'
@@ -79,24 +78,13 @@ def fetch_discogs_cover(release_id):
 # Streamlit app
 st.title('🎵 Music Search App')
 
-# ✅ Improved CSS: full-width lock + fix empty space + prevent horizontal scrollbar
+# ✅ CSS: keep full width lock & clip horizontal overflow
 st.markdown("""
     <style>
-    .block-container, .ag-theme-streamlit, .ag-root-wrapper {
+    .block-container {
         width: 100% !important;
         max-width: 100% !important;
         min-width: 100% !important;
-        resize: none !important;
-    }
-    .ag-body-viewport, .ag-center-cols-clipper {
-        overflow-x: hidden !important;
-    }
-    .stContainer {
-        padding-bottom: 0px !important;
-    }
-    .ag-center-cols-container {
-        min-height: auto !important;
-        height: auto !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -194,7 +182,7 @@ if search_query:
                             except FileNotFoundError:
                                 st.info("No override file found to remove.")
 
-                # ✅ Tracklist table with AgGrid (auto-height + Disc/Track narrow columns)
+                # ✅ Tracklist table using st.dataframe (auto-height + interactive)
                 tracklist = group[[
                     'Track Title', 'Artist', 'CD', 'Track Number', 'Format'
                 ]].rename(columns={
@@ -203,23 +191,8 @@ if search_query:
                     'Track Number': 'Track',
                 }).reset_index(drop=True)
 
-                # Build grid options with custom widths
-                gb = GridOptionsBuilder.from_dataframe(tracklist)
-                gb.configure_default_column(resizable=True, wrapText=True, autoHeight=True)
-
-                # Set Disc and Track columns to be narrow (about 60px)
-                gb.configure_column("Disc", width=60)
-                gb.configure_column("Track", width=60)
-
-                grid_options = gb.build()
-
-                AgGrid(
+                st.dataframe(
                     tracklist,
-                    gridOptions=grid_options,
-                    enable_enterprise_modules=False,
-                    allow_unsafe_jscode=False,
-                    theme='streamlit',
-                    fit_columns_on_grid_load=True,
                     use_container_width=True,
-                    domLayout='autoHeight',  # ✅ Dynamic height (no scrollbars)
+                    hide_index=True,
                 )
