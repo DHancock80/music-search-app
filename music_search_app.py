@@ -36,9 +36,14 @@ search_type = st.radio("Search by:", ["Song Title", "Artist"], horizontal=True)
 search_query = st.text_input("Enter your search query")
 
 st.markdown("**Filter by Format:**")
-format_album = st.checkbox("Album", value=True)
-format_single = st.checkbox("Single", value=True)
-format_video = st.checkbox("Video", value=True)
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    format_album = st.checkbox("Album", value=True)
+with col2:
+    format_single = st.checkbox("Single", value=True)
+with col3:
+    format_video = st.checkbox("Video", value=True)
 
 selected_formats = []
 if format_album:
@@ -47,6 +52,7 @@ if format_single:
     selected_formats.append("Single")
 if format_video:
     selected_formats.append("Video")
+
 
 # Perform search if query is entered
 if search_query:
