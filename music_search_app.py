@@ -89,6 +89,19 @@ def fetch_discogs_cover(release_id):
 # Streamlit app
 st.title('🎵 Music Search App')
 
+# Add a bit of CSS to style each result card
+st.markdown("""
+    <style>
+    .result-card {
+        border: 2px solid #ddd;
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 20px;
+        background-color: #f9f9f9;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 df = load_data()
 
 if df.empty:
@@ -108,34 +121,38 @@ if search_query:
         st.write("#### Results")
 
         for idx, row in results.iterrows():
-            # Get the cover image
-            cover = row.get('cover_art_final') or row.get('cover_art')
-            if pd.isna(cover) and pd.notna(row.get('release_id')):
-                cover = fetch_discogs_cover(row['release_id'])
-            
-            # Set up the row layout
-            cols = st.columns([1, 4, 2])
-            
-            # Thumbnail
-            with cols[0]:
-                if cover:
-                    if st.button(f"View Cover {idx}", key=f"btn_{idx}"):
-                        with st.modal(f"{row['Track Title']} - {row['Artist']}"):
-                            st.image(cover, caption=f"{row['Track Title']} - {row['Artist']}", use_column_width=True)
-                    st.image(cover, width=80)
-                else:
-                    st.text("No cover")
-            
-            # Song info
-            with cols[1]:
-                st.markdown(f"**{row['Track Title']}** by **{row['Artist']}**")
-                st.markdown(f"*Album:* {row['Title']}")
-            
-            # CD & Track info
-            with cols[2]:
-                st.markdown(f"**Disc:** {row.get('CD', 'N/A')}")
-                st.markdown(f"**Track:** {row.get('Track Number', 'N/A')}")
-                st.markdown(f"**Format:** {row.get('Format', 'N/A')}")
+            with st.container():
+                st.markdown('<div class="result-card">', unsafe_allow_html=True)
+
+                # Get the cover image
+                cover = row.get('cover_art_final') or row.get('cover_art')
+                if pd.isna(cover) and pd.notna(row.get('release_id')):
+                    cover = fetch_discogs_cover(row['release_id'])
+                
+                cols = st.columns([1, 4, 2])
+
+                # Thumbnail
+                with cols[0]:
+                    if cover:
+                        st.image(cover, width=80)
+                        if st.button(f"View Larger {idx}", key=f"btn_{idx}"):
+                            with st.modal(f"{row['Track Title']} - {row['Artist']}"):
+                                st.image(cover, caption=f"{row['Track Title']} - {row['Artist']}", use_column_width=True)
+                    else:
+                        st.text("No cover art")
+
+                # Song info
+                with cols[1]:
+                    st.markdown(f"**{row['Track Title']}** by **{row['Artist']}**")
+                    st.markdown(f"*Album:* {row['Title']}")
+
+                # CD & Track info
+                with cols[2]:
+                    st.markdown(f"**Disc:** {row.get('CD', 'N/A')}")
+                    st.markdown(f"**Track:** {row.get('Track Number', 'N/A')}")
+                    st.markdown(f"**Format:** {row.get('Format', 'N/A')}")
+
+                st.markdown('</div>', unsafe_allow_html=True)
 
 # Optional: File uploader for cover art corrections
 st.write("---")
