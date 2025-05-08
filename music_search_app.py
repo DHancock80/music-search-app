@@ -17,7 +17,7 @@ GITHUB_BRANCH = 'main'
 @st.cache_data
 def load_data():
     try:
-        df = pd.read_csv(CSV_FILE, encoding='utf-8-sig')
+        df = pd.read_csv(CSV_FILE, encoding='latin1')
         
         if 'cover_art' not in df.columns:
             df['cover_art'] = None
