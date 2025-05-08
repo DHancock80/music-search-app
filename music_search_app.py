@@ -140,11 +140,10 @@ if search_query:
         for release_id, group in grouped:
             first_row = group.iloc[0]
             album_title = first_row['Title']
-            unique_artists = group['Artist'].dropna().unique()
-            if len(unique_artists) == 1:
-                display_artist = unique_artists[0]
-            else:
-                display_artist = "Various Artists"
+
+            # NEW: Use artist from the *first track* (not album-level artist)
+            track_artists = group['Artist'].dropna().unique()
+            display_artist = ', '.join(track_artists) if len(track_artists) > 0 else "Unknown"
 
             cover = first_row.get('cover_art_final')
 
@@ -171,6 +170,10 @@ if search_query:
                         )
                     else:
                         st.text("No cover art")
+
+                with cols[1]:
+                    st.markdown(f"### {album_title}")
+                    st.markdown(f"**Artist:** {display_artist}")
 
                     with st.expander("Update Cover Art"):
                         new_url = st.text_input("Paste a new cover art URL:", key=f"url_{release_id}")
@@ -234,25 +237,7 @@ if search_query:
                                     st.cache_data.clear()
                                     st.rerun()
 
-                with cols[1]:
-                    st.markdown(f"### {album_title}")
-                    st.markdown(f"**Artist:** {display_artist}")
-
-                    if format_filter != 'Album':
-                        tracklist = group[[
-                            'Track Title', 'Artist', 'CD', 'Track Number'
-                        ]].rename(columns={
-                            'Track Title': 'Song',
-                            'CD': 'Disc',
-                            'Track Number': 'Track',
-                        }).reset_index(drop=True)
-
-                        st.dataframe(
-                            tracklist,
-                            use_container_width=True,
-                            hide_index=True,
-                        )
-                    else:
+                    if format_filter == 'Album':
                         with st.expander("Click to view tracklist"):
                             tracklist = group[[
                                 'Track Title', 'Artist', 'CD', 'Track Number'
@@ -267,6 +252,21 @@ if search_query:
                                 use_container_width=True,
                                 hide_index=True,
                             )
+                    else:
+                        # Always show tracklist directly if not Album filter
+                        tracklist = group[[
+                            'Track Title', 'Artist', 'CD', 'Track Number'
+                        ]].rename(columns={
+                            'Track Title': 'Song',
+                            'CD': 'Disc',
+                            'Track Number': 'Track',
+                        }).reset_index(drop=True)
+
+                        st.dataframe(
+                            tracklist,
+                            use_container_width=True,
+                            hide_index=True,
+                        )
 
         if new_covers:
             try:
