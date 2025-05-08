@@ -1,21 +1,15 @@
 import streamlit as st
 import pandas as pd
 import requests
-from io import StringIO
-import base64
-import csv
 
 # Constants
 CSV_FILE = 'expanded_discogs_tracklists.csv'
 COVER_OVERRIDES_CSV = 'cover_overrides.csv'
-DISCOGS_IMAGE_TEMPLATE = "https://img.discogs.com/{}/image.jpg"
 
 # --- Load data ---
-@st.cache_data
 def load_data():
     return pd.read_csv(CSV_FILE, encoding='latin1')
 
-@st.cache_data
 def load_cover_overrides():
     try:
         return pd.read_csv(COVER_OVERRIDES_CSV)
@@ -75,10 +69,11 @@ def main():
             results = results[results['Format'].str.contains(format_filter, case=False, na=False)]
 
         if search_type == 'Album' and format_filter == 'Album':
-            grouped = results.groupby(['release_id', 'Title', 'Artist'])
+            grouped = results.groupby(['release_id', 'Title'])
+
             st.subheader(f"Found {len(grouped)} album(s)")
 
-            for (release_id, title, album_artist), group in grouped:
+            for (release_id, title), group in grouped:
                 st.markdown("---")
                 cover_url = None
 
@@ -91,46 +86,47 @@ def main():
                     if cover_url:
                         save_cover_override(release_id, cover_url)
 
-                # Display cover art + info
+                # Album info: choose display artist smartly
+                unique_artists = group['Artist'].dropna().unique()
+                unique_artists = [a.strip() for a in unique_artists if a.strip()]
+                if len(set(unique_artists)) == 1:
+                    display_artist = unique_artists[0]
+                else:
+                    display_artist = "Various Artists"
+
+                # Layout: cover + info side by side
                 cols = st.columns([1, 4])
                 with cols[0]:
                     if cover_url:
-                        st.image(cover_url, width=100)
+                        st.image(cover_url, width=120)
                     else:
                         st.text("No Cover")
 
-                    # Update Cover Art button
-                    with st.expander("Update Cover Art"):
-                        new_url = st.text_input(f"Paste a new cover art URL for {title} (Release ID: {release_id}):", key=f"input_{release_id}")
-                        if st.button("Submit new cover art", key=f"submit_{release_id}"):
-                            if new_url:
-                                save_cover_override(release_id, new_url)
-                                st.success("Cover art updated! Please refresh to see changes.")
-                        if st.button("Reset to original cover", key=f"reset_{release_id}"):
-                            remove_cover_override(release_id)
-                            st.success("Cover art reset to original! Please refresh to see changes.")
-
                 with cols[1]:
-                    # Determine artist label
-                    unique_artists = group['Artist'].dropna().unique()
-                    unique_artists = [a.strip() for a in unique_artists if a.strip()]
-                    if len(set(unique_artists)) == 1:
-                        display_artist = unique_artists[0]
-                    else:
-                        display_artist = "Various Artists"
                     st.subheader(title)
                     st.markdown(f"**Artist:** {display_artist}")
 
-                    # Expander for tracklist
-                    with st.expander("Click to view tracklist"):
-                        show_cols = ['Track Title', 'Artist', 'CD', 'Track Number']
-                        tracklist = group[show_cols].rename(columns={
-                            'Track Title': 'Song',
-                            'Artist': 'Artist',
-                            'CD': 'Disc',
-                            'Track Number': 'Track'
-                        })
-                        st.dataframe(tracklist, use_container_width=True, hide_index=True)
+                # BELOW: Update Cover Art (full width)
+                with st.expander("Update Cover Art"):
+                    new_url = st.text_input(f"Paste a new cover art URL for {title} (Release ID: {release_id}):", key=f"input_{release_id}")
+                    if st.button("Submit new cover art", key=f"submit_{release_id}"):
+                        if new_url:
+                            save_cover_override(release_id, new_url)
+                            st.success("Cover art updated! Please refresh to see changes.")
+                    if st.button("Reset to original cover", key=f"reset_{release_id}"):
+                        remove_cover_override(release_id)
+                        st.success("Cover art reset to original! Please refresh to see changes.")
+
+                # Expander for tracklist
+                with st.expander("Click to view tracklist"):
+                    show_cols = ['Track Title', 'Artist', 'CD', 'Track Number']
+                    tracklist = group[show_cols].rename(columns={
+                        'Track Title': 'Song',
+                        'Artist': 'Artist',
+                        'CD': 'Disc',
+                        'Track Number': 'Track'
+                    })
+                    st.dataframe(tracklist, use_container_width=True, hide_index=True)
 
         else:
             st.subheader(f"Found {len(results)} result(s)")
