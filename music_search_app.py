@@ -112,10 +112,6 @@ def upload_to_github(file_path, repo, token, branch, commit_message):
 # Clean page title (no emoji)
 st.title('Music Search App')
 
-# Debug expander (optional logs here)
-with st.expander("🔧 Debug logs (cover sync info)"):
-    debug_log = st.empty()
-
 df = load_data()
 
 if df.empty:
@@ -262,14 +258,10 @@ if search_query:
 
             existing.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
             commit_message = f"Batch sync cover_overrides.csv ({datetime.utcnow().isoformat()} UTC)"
-            gh_response = upload_to_github(
+            upload_to_github(
                 COVER_OVERRIDES_FILE,
                 GITHUB_REPO,
                 GITHUB_TOKEN,
                 GITHUB_BRANCH,
                 commit_message
             )
-            if gh_response.status_code in [200, 201]:
-                debug_log.info("✅ cover_overrides.csv synced to GitHub (batch update).")
-            else:
-                debug_log.warning(f"⚠️ GitHub sync failed: {gh_response.status_code} - {gh_response.text}")
