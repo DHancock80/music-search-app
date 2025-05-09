@@ -54,7 +54,7 @@ def sync_to_github():
 
 
 def fetch_discogs_cover(release_id):
-    token = st.secrets["DISCOGS_TOKEN"]
+    token = st.secrets["DISCOGS_API_TOKEN"]
     url = f"https://api.discogs.com/releases/{release_id}"
     headers = {"Authorization": f"Discogs token={token}"}
     try:
