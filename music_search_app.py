@@ -44,13 +44,14 @@ def sync_to_github():
             "content": content_b64,
             "sha": sha
         }
-        response = requests.put(api_url, json=payload, headers={"Authorization": f"token {token}"})
+        requests.put(api_url, json=payload, headers={"Authorization": f"token {token}"})
     else:
         payload = {
             "message": "Create cover_overrides.csv",
             "content": content_b64
         }
-        response = requests.put(api_url, json=payload, headers={"Authorization": f"token {token}"})
+        requests.put(api_url, json=payload, headers={"Authorization": f"token {token}"})
+
 
 def fetch_discogs_cover(release_id):
     token = st.secrets["DISCOGS_TOKEN"]
@@ -87,7 +88,6 @@ search_type = st.radio("Search by:", ["Song Title", "Artist", "Album"], horizont
 def fuzzy_filter(df, column, search_term, threshold=80):
     return df[df[column].apply(lambda x: fuzz.token_set_ratio(str(x), search_term) >= threshold)]
 
-# Only run if search term entered
 if search_term:
     if search_type == "Song Title":
         results = fuzzy_filter(df, "Track Title", search_term)
@@ -96,55 +96,63 @@ if search_term:
     else:  # Album
         results = fuzzy_filter(df, "Title", search_term)
 
-    # Count for each format
-    all_count = len(results)
-    album_count = results[
+    # Prepare unique album sets
+    album_release_ids = set(results[
         results["Format"].str.contains("Album", case=False, na=False)
         | results["Format"].str.contains("Compilation", case=False, na=False)
         | results["Format"].str.contains("Comp", case=False, na=False)
-    ].shape[0]
-    single_count = results[results["Format"].str.contains("Single", case=False, na=False)].shape[0]
-    video_count = results[results["Format"].str.contains("Video", case=False, na=False)].shape[0]
+    ]["release_id"])
 
-    # Format filter as radio buttons with counts
+    single_release_ids = set(results[
+        results["Format"].str.contains("Single", case=False, na=False)
+    ]["release_id"])
+
+    video_release_ids = set(results[
+        results["Format"].str.contains("Video", case=False, na=False)
+    ]["release_id"])
+
+    all_release_ids = set(results["release_id"])
+
+    # Format filter as radio buttons with album counts
     format_options = {
-        f"All ({all_count})": "All",
-        f"Album ({album_count})": "Album",
-        f"Single ({single_count})": "Single",
-        f"Video ({video_count})": "Video"
+        f"All ({len(all_release_ids)})": "All",
+        f"Album ({len(album_release_ids)})": "Album",
+        f"Single ({len(single_release_ids)})": "Single",
+        f"Video ({len(video_release_ids)})": "Video"
     }
-    selected_format = st.radio("Filter by format:", list(format_options.keys()), horizontal=True)
+    selected_format = st.radio("Filter by format (albums):", list(format_options.keys()), horizontal=True)
     selected_format_value = format_options[selected_format]
 
-    # Apply format filtering
-    if selected_format_value != "All":
-        if selected_format_value == "Album":
-            results = results[
-                results["Format"].str.contains("Album", case=False, na=False)
-                | results["Format"].str.contains("Compilation", case=False, na=False)
-                | results["Format"].str.contains("Comp", case=False, na=False)
-            ]
-        else:
-            results = results[results["Format"].str.contains(selected_format_value, case=False, na=False)]
+    # Apply format filtering to unique albums
+    if selected_format_value == "Album":
+        filtered_release_ids = album_release_ids
+    elif selected_format_value == "Single":
+        filtered_release_ids = single_release_ids
+    elif selected_format_value == "Video":
+        filtered_release_ids = video_release_ids
+    else:
+        filtered_release_ids = all_release_ids
 
-    st.write(f"Found {len(results)} result(s)")
+    st.write(f"Found {len(filtered_release_ids)} album(s)")
 
     # Sort options
     sort_option = st.radio("Sort by:", ["Album Title", "Artist"], horizontal=True)
 
-    # Grouping
-    grouped = results.groupby("release_id")
-
-    # Prepare sorting key
     album_data = []
-    for release_id, group in grouped:
+    for release_id in filtered_release_ids:
+        group = results[results["release_id"] == release_id]
         album_title = group["Title"].iloc[0]
         album_artist = group["Artist"].iloc[0]
-        sort_artist = album_artist if album_artist.lower() != "various" else "Various Artists"
+        album_format = group["Format"].iloc[0]
+        is_compilation = (
+            "Compilation" in str(album_format)
+            or "Comp" in str(album_format)
+        )
+        display_artist = "Various Artists" if is_compilation else album_artist
         album_data.append({
             "release_id": release_id,
             "title": album_title,
-            "artist": sort_artist,
+            "artist": display_artist,
             "group": group
         })
 
@@ -153,7 +161,6 @@ if search_term:
     else:
         album_data = sorted(album_data, key=lambda x: x["artist"].lower())
 
-    # Render albums
     for album in album_data:
         release_id = album["release_id"]
         album_title = album["title"]
@@ -183,7 +190,6 @@ if search_term:
             st.markdown(f"### {album_title}")
             st.markdown(f"**Artist:** {album_artist}")
 
-            # Update Cover Art section
             with st.expander("Update Cover Art"):
                 new_cover = st.text_input(f"Paste a new cover art URL:", key=f"cover_{release_id}")
                 col_submit, col_reset = st.columns([1, 1])
@@ -200,7 +206,6 @@ if search_term:
                         save_cover_override(cover_overrides)
                         st.success("Cover override removed. Reload to apply changes.")
 
-            # Tracklist expander
             with st.expander("Click to view tracklist"):
                 tracklist = group[["Track Title", "Artist", "CD", "Track Number"]].rename(
                     columns={
@@ -211,12 +216,10 @@ if search_term:
                     }
                 ).reset_index(drop=True)
 
-                # Fix Disc numbers: replace None/blank with 1
                 tracklist["Disc"] = tracklist["Disc"].fillna(1)
                 tracklist["Disc"] = tracklist["Disc"].replace("", 1)
 
                 st.dataframe(tracklist, use_container_width=True, hide_index=True)
 
-# ------------------ GitHub Sync Status ------------------
 if "last_sync" in st.session_state:
     st.success(st.session_state["last_sync"])
