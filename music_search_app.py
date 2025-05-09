@@ -186,26 +186,36 @@ if search_term:
             else:
                 st.write("(No cover art available)")
 
+            # Small gray link for Update Cover Art
+            update_link = f"<p style='font-size:12px; color:gray; cursor:pointer;'>Update Cover Art</p>"
+            if st.markdown(update_link, unsafe_allow_html=True):
+                if st.button("Open Update Cover Art", key=f"open_{release_id}"):
+                    st.session_state[f"modal_open_{release_id}"] = True
+
+            if st.session_state.get(f"modal_open_{release_id}", False):
+                with st.modal(f"Update Cover Art for {album_title}"):
+                    new_cover = st.text_input(f"Paste a new cover art URL:", key=f"cover_{release_id}")
+                    col_submit, col_reset = st.columns([1, 1])
+                    with col_submit:
+                        if st.button("Submit new cover art", key=f"submit_{release_id}"):
+                            cover_overrides = cover_overrides[cover_overrides["release_id"] != release_id]
+                            new_row = pd.DataFrame({"release_id": [release_id], "cover_url": [new_cover]})
+                            cover_overrides = pd.concat([cover_overrides, new_row], ignore_index=True)
+                            save_cover_override(cover_overrides)
+                            st.success("Cover art override saved! Reload the app to see changes.")
+                            st.session_state[f"modal_open_{release_id}"] = False
+                    with col_reset:
+                        if st.button("Reset to original cover", key=f"reset_{release_id}"):
+                            cover_overrides = cover_overrides[cover_overrides["release_id"] != release_id]
+                            save_cover_override(cover_overrides)
+                            st.success("Cover override removed. Reload to apply changes.")
+                            st.session_state[f"modal_open_{release_id}"] = False
+
         with col2:
             st.markdown(f"### {album_title}")
             st.markdown(f"**Artist:** {album_artist}")
 
-            with st.expander("Update Cover Art"):
-                new_cover = st.text_input(f"Paste a new cover art URL:", key=f"cover_{release_id}")
-                col_submit, col_reset = st.columns([1, 1])
-                with col_submit:
-                    if st.button("Submit new cover art", key=f"submit_{release_id}"):
-                        cover_overrides = cover_overrides[cover_overrides["release_id"] != release_id]
-                        new_row = pd.DataFrame({"release_id": [release_id], "cover_url": [new_cover]})
-                        cover_overrides = pd.concat([cover_overrides, new_row], ignore_index=True)
-                        save_cover_override(cover_overrides)
-                        st.success("Cover art override saved! Reload the app to see changes.")
-                with col_reset:
-                    if st.button("Reset to original cover", key=f"reset_{release_id}"):
-                        cover_overrides = cover_overrides[cover_overrides["release_id"] != release_id]
-                        save_cover_override(cover_overrides)
-                        st.success("Cover override removed. Reload to apply changes.")
-
+            # Tracklist expander
             with st.expander("Click to view tracklist"):
                 tracklist = group[["Track Title", "Artist", "CD", "Track Number"]].rename(
                     columns={
