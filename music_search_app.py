@@ -1,4 +1,4 @@
-# Music Search App - Final Version with Full Functionality
+# Music Search App – Fully Functional Final Version
 
 import streamlit as st
 import pandas as pd
@@ -17,6 +17,7 @@ GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 GITHUB_REPO = 'DHancock80/music-search-app'
 GITHUB_BRANCH = 'main'
 
+# Load and cache data
 @st.cache_data
 def load_data():
     try:
@@ -35,22 +36,17 @@ def load_data():
         df = pd.DataFrame()
     return df
 
-def clean_artist_name(artist):
-    if pd.isna(artist): return ''
-    artist = re.sub(r'\s*(feat\.|ft\.|featuring)\s*', ' ', artist, flags=re.I)
-    artist = re.sub(r'[^\w\s]', '', artist)
-    return artist.strip().lower()
+# Helper functions
+def clean_text(text):
+    if pd.isna(text): return ''
+    return re.sub(r'[^\w\s]', '', text).strip().lower()
 
-def fuzzy_search(df, query, search_type):
-    query = query.lower().strip()
-    if search_type == 'Song Title':
-        return df[df['Track Title'].str.lower().str.contains(query, na=False)]
-    elif search_type == 'Artist':
-        df['artist_clean'] = df['Artist'].apply(clean_artist_name)
-        return df[df['artist_clean'].str.contains(query, na=False)]
-    elif search_type == 'Album':
-        return df[df['Title'].str.lower().str.contains(query, na=False)]
-    return df
+def fuzzy_search(df, query, field):
+    query = clean_text(query)
+    choices = df[field].dropna().unique()
+    matches = process.extract(query, choices, limit=25, scorer=process.fuzz.WRatio)
+    match_texts = [m[0] for m in matches if m[1] > 65]
+    return df[df[field].isin(match_texts)]
 
 def fetch_discogs_cover(release_id):
     headers = {"Authorization": f"Discogs token={DISCOGS_API_TOKEN}"}
@@ -77,96 +73,101 @@ def upload_to_github(file_path, repo, token, branch, message):
     if sha: data["sha"] = sha
     return requests.put(url, headers=headers, json=data)
 
-# UI
+# App UI
+st.set_page_config(page_title="Music Search App")
 st.title("Music Search App")
 df = load_data()
 if df.empty: st.stop()
 
-album_list = df['Title'].dropna().unique()
-artist_list = df['Artist'].dropna().unique()
-song_list = df['Track Title'].dropna().unique()
+search_type = st.radio("Search by:", ["Song Title", "Artist", "Album"], horizontal=True)
+query = st.text_input("Start typing to search:", key="search_query")
+if st.button("New Search"):
+    st.session_state.search_query = ''
+    st.experimental_rerun()
 
-search_type = st.radio('Search by:', ['Song Title', 'Artist', 'Album'], horizontal=True)
-suggestions = song_list if search_type == 'Song Title' else artist_list if search_type == 'Artist' else album_list
-query = st.text_input('Enter your search:', '', placeholder='Start typing...')
+search_field = {'Song Title': 'Track Title', 'Artist': 'Artist', 'Album': 'Title'}[search_type]
 
 if query:
-    matches = process.extract(query, suggestions, limit=5)
-    if matches: query = st.selectbox('Suggestions:', [query] + [m[0] for m in matches])
+    results = fuzzy_search(df, query, search_field)
+else:
+    results = pd.DataFrame()
 
-if st.button("❌ Clear Search"):
-    st.rerun()
+# Format breakdown counts
+if not results.empty:
+    format_counts = {
+        'All': len(results),
+        'Album': len(results[results['Format'].str.lower().isin(['album', 'compilation', 'comp'])]),
+        'Single': len(results[results['Format'].str.lower() == 'single']),
+        'Video': len(results[results['Format'].str.lower() == 'video'])
+    }
+else:
+    format_counts = {k: 0 for k in ['All', 'Album', 'Single', 'Video']}
 
-results = fuzzy_search(df, query, search_type) if query else pd.DataFrame()
+selected_format = st.radio("Filter by format:", [f"{k} ({v})" for k, v in format_counts.items()], horizontal=True)
+format_key = selected_format.split()[0]
 
-format_counts = {
-    'All': len(results),
-    'Album': len(results[results['Format'].str.lower().isin(['album', 'compilation', 'comp'])]),
-    'Single': len(results[results['Format'].str.lower() == 'single']),
-    'Video': len(results[results['Format'].str.lower() == 'video'])
-} if not results.empty else {k: 0 for k in ['All', 'Album', 'Single', 'Video']}
-
-format_filter = st.radio("Filter by format:", [f"{k} ({v})" for k, v in format_counts.items()], horizontal=True)
-selected_format = format_filter.split()[0]
-
-if selected_format != 'All':
-    results = results[results['Format'].str.lower().isin(
-        ['album', 'compilation', 'comp'] if selected_format == 'Album' else [selected_format.lower()]
-    )]
+if format_key != 'All':
+    if format_key == 'Album':
+        results = results[results['Format'].str.lower().isin(['album', 'compilation', 'comp'])]
+    else:
+        results = results[results['Format'].str.lower() == format_key.lower()]
 
 if not results.empty:
     st.write(f"### Found {len(results)} track(s) across {results['Title'].nunique()} album(s)")
     new_covers = []
     for release_id, group in results.groupby('release_id'):
         row = group.iloc[0]
-        album, artist, cover = row['Title'], row['Artist'], row.get('cover_art_final')
+        album = row['Title']
+        artist = row['Artist']
+        cover = row.get('cover_art_final')
         if pd.isna(cover):
             cover = fetch_discogs_cover(release_id)
-            if cover: new_covers.append({'release_id': release_id, 'cover_url': cover})
+            if cover:
+                new_covers.append({'release_id': release_id, 'cover_url': cover})
         cols = st.columns([1, 5])
         with cols[0]:
             if cover:
                 st.markdown(f'<a href="{cover}" target="_blank"><img src="{cover}" width="120"></a>', unsafe_allow_html=True)
             else:
                 st.text("No cover")
-            link_key = f"link_{release_id}"
-            if st.button("🖼️ Update Cover Art", key=link_key):
-                st.session_state[link_key + '_show'] = not st.session_state.get(link_key + '_show', False)
+            if st.button("Update Cover Art", key=f"show_{release_id}"):
+                st.session_state[f'show_modal_{release_id}'] = not st.session_state.get(f'show_modal_{release_id}', False)
         with cols[1]:
             st.markdown(f"### {album}")
-            st.markdown(f"**Artist:** {artist}")
-            if st.session_state.get(link_key + '_show', False):
-                st.markdown("---")
+            st.markdown(f"**Artist:** {artist if 'various' not in artist.lower() else 'Various Artists'}")
+            if st.session_state.get(f'show_modal_{release_id}', False):
                 new_url = st.text_input("New cover URL:", key=f"url_{release_id}")
-                submit, reset = st.columns(2)
-                with submit:
+                col1, col2 = st.columns(2)
+                with col1:
                     if st.button("Submit", key=f"submit_{release_id}"):
-                        df_new = pd.DataFrame([{'release_id': release_id, 'cover_url': new_url}])
+                        new_entry = pd.DataFrame([{'release_id': release_id, 'cover_url': new_url}])
                         try:
                             existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
                             existing = existing[existing['release_id'] != release_id]
-                            updated = pd.concat([existing, df_new], ignore_index=True)
+                            updated = pd.concat([existing, new_entry], ignore_index=True)
                         except:
-                            updated = df_new
+                            updated = new_entry
                         updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
-                        upload_to_github(COVER_OVERRIDES_FILE, GITHUB_REPO, GITHUB_TOKEN, GITHUB_BRANCH, f"Update {release_id}")
-                        st.success("Saved and synced to GitHub!")
-                        st.rerun()
-                with reset:
+                        upload_to_github(COVER_OVERRIDES_FILE, GITHUB_REPO, GITHUB_TOKEN, GITHUB_BRANCH, f"Manual update for {release_id}")
+                        st.success("Cover updated and synced.")
+                        st.experimental_rerun()
+                with col2:
                     if st.button("Reset", key=f"reset_{release_id}"):
                         try:
                             existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
                             updated = existing[existing['release_id'] != release_id]
                             updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
-                            upload_to_github(COVER_OVERRIDES_FILE, GITHUB_REPO, GITHUB_TOKEN, GITHUB_BRANCH, f"Reset {release_id}")
-                            st.success("Cover reset!")
-                            st.rerun()
+                            upload_to_github(COVER_OVERRIDES_FILE, GITHUB_REPO, GITHUB_TOKEN, GITHUB_BRANCH, f"Reset for {release_id}")
+                            st.success("Cover reset.")
+                            st.experimental_rerun()
                         except:
-                            st.warning("No override to remove.")
+                            st.warning("Nothing to reset.")
         with st.expander("Click to view tracklist"):
             tracklist = group[['Track Title', 'Artist', 'CD', 'Track Number']]
             tracklist.columns = ['Song', 'Artist', 'Disc', 'Track']
             st.dataframe(tracklist, use_container_width=True, hide_index=True)
+
+    # Batch save
     if new_covers:
         try:
             existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
