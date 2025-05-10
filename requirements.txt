@@ -4,3 +4,4 @@ requests
 streamlit-aggrid
 fuzzywuzzy
 python-Levenshtein
+PyGithub
