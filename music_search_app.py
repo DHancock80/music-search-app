@@ -5,6 +5,7 @@ import requests
 import time
 import base64
 from datetime import datetime
+from rapidfuzz import fuzz, process
 
 # Constants
 CSV_FILE = 'expanded_discogs_tracklist.csv'
@@ -46,25 +47,25 @@ def clean_artist_name(artist):
     artist = re.sub(r'\s+', ' ', artist).strip()
     return artist
 
-def search(df, query, search_type, format_filter):
-    if df.empty:
-        return df
+def fuzzy_search(df, query, search_type):
     query = query.lower().strip()
-    results = df.copy()
-
     if search_type == 'Song Title':
-        results = results[results['Track Title'].str.lower().str.contains(query, na=False)]
+        choices = df['Track Title'].dropna().unique()
+        matches = process.extract(query, choices, scorer=fuzz.token_sort_ratio, limit=30)
+        matched_titles = [m[0] for m in matches if m[1] >= 70]
+        return df[df['Track Title'].isin(matched_titles)]
     elif search_type == 'Artist':
-        results['artist_clean'] = results['Artist'].apply(clean_artist_name)
-        results = results[results['artist_clean'].str.contains(query, na=False)]
+        df['artist_clean'] = df['Artist'].apply(clean_artist_name)
+        choices = df['artist_clean'].dropna().unique()
+        matches = process.extract(query, choices, scorer=fuzz.token_sort_ratio, limit=30)
+        matched_artists = [m[0] for m in matches if m[1] >= 70]
+        return df[df['artist_clean'].isin(matched_artists)]
     elif search_type == 'Album':
-        results = results[results['Title'].str.lower().str.contains(query, na=False)]
-
-    if format_filter != 'All':
-        if 'Format' in results.columns:
-            results = results[results['Format'].str.lower() == format_filter.lower()]
-
-    return results
+        choices = df['Title'].dropna().unique()
+        matches = process.extract(query, choices, scorer=fuzz.token_sort_ratio, limit=30)
+        matched_albums = [m[0] for m in matches if m[1] >= 70]
+        return df[df['Title'].isin(matched_albums)]
+    return df
 
 def fetch_discogs_cover(release_id):
     headers = {"Authorization": f"Discogs token={DISCOGS_API_TOKEN}"}
@@ -88,7 +89,6 @@ def upload_to_github(file_path, repo, token, branch, commit_message):
         content = f.read()
     content_b64 = base64.b64encode(content).decode()
 
-    # Get the current file SHA (if it exists)
     get_resp = requests.get(api_url, headers=headers, params={"ref": branch})
     if get_resp.status_code == 200:
         sha = get_resp.json()['sha']
@@ -106,7 +106,7 @@ def upload_to_github(file_path, repo, token, branch, commit_message):
     response = requests.put(api_url, headers=headers, json=data)
     return response
 
-# Clean page title (no emoji)
+# Clean page title
 st.title('Music Search App')
 
 df = load_data()
@@ -114,21 +114,61 @@ df = load_data()
 if df.empty:
     st.stop()
 
+# Collect auto-suggestions
+all_suggestions = []
+if 'Track Title' in df.columns:
+    all_suggestions += [f"Song: {x}" for x in df['Track Title'].dropna().unique()]
+if 'Artist' in df.columns:
+    all_suggestions += [f"Artist: {x}" for x in df['Artist'].dropna().unique()]
+if 'Title' in df.columns:
+    all_suggestions += [f"Album: {x}" for x in df['Title'].dropna().unique()]
+
 search_query = st.text_input('Enter your search:', '')
+
+# Predictive suggestions (shown below search)
+if len(search_query) >= 3:
+    filtered_suggestions = [s for s in all_suggestions if search_query.lower() in s.lower()]
+    if filtered_suggestions:
+        st.caption("Suggestions:")
+        for s in filtered_suggestions[:5]:
+            st.write(s)
+
 search_type = st.radio('Search by:', ['Song Title', 'Artist', 'Album'], horizontal=True)
-format_filter = st.selectbox('Format filter:', ['All', 'Album', 'Single'])
+
+# Clear search button
+if st.button("❌ Clear Search"):
+    st.experimental_rerun()
+
+format_options = ['All', 'Album', 'Single', 'Video']
+format_filter = st.radio('Filter by format:', format_options, horizontal=True)
 
 if search_query:
-    results = search(df, search_query, search_type, format_filter)
+    results = fuzzy_search(df, search_query, search_type)
+
+    counts = {
+        'All': len(results),
+        'Album': len(results[results['Format'].str.lower() == 'album']) if 'Format' in results.columns else 0,
+        'Single': len(results[results['Format'].str.lower() == 'single']) if 'Format' in results.columns else 0,
+        'Video': len(results[results['Format'].str.lower() == 'video']) if 'Format' in results.columns else 0,
+    }
+
+    st.markdown(
+        f"**Results:** All ({counts['All']}) | Album ({counts['Album']}) | "
+        f"Single ({counts['Single']}) | Video ({counts['Video']})"
+    )
+
+    if format_filter != 'All':
+        if 'Format' in results.columns:
+            results = results[results['Format'].str.lower() == format_filter.lower()]
 
     unique_results = results.drop_duplicates()
-    st.write(f"### Found {len(unique_results)} result(s)")
+    st.write(f"### Found {len(unique_results)} track(s) across {unique_results['Title'].nunique()} album(s)")
 
     if unique_results.empty:
         st.info("No results found.")
     else:
         cover_cache = {}
-        new_covers = []  # Collect new covers to sync at the end
+        new_covers = []
         grouped = results.groupby('release_id')
 
         for release_id, group in grouped:
@@ -161,13 +201,13 @@ if search_query:
                     else:
                         st.text("No cover art")
 
-                    # Small update link under image
+                    # Text link under image
                     update_key = f"update_link_{release_id}"
                     if st.button("🖼️ Update Cover Art", key=update_key):
                         st.session_state[f"show_update_{release_id}"] = not st.session_state.get(f"show_update_{release_id}", False)
 
                 with cols[1]:
-                    # Align Album Title and Artist at the top
+                    # Top-aligned Album + Artist
                     st.markdown(f"### {album_title}")
                     st.markdown(f"**Artist:** {artist}")
 
@@ -251,7 +291,6 @@ if search_query:
                         hide_index=True,
                     )
 
-        # After all fetches are done: save once & sync to GitHub
         if new_covers:
             try:
                 existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
