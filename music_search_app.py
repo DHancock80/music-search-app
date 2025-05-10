@@ -3,7 +3,7 @@ import pandas as pd
 import requests
 from io import StringIO
 from fuzzywuzzy import fuzz
-from github import Github
+import base64
 
 # --- CONFIG ---
 st.set_page_config(page_title="Music Search App", layout="wide")
@@ -41,17 +41,32 @@ def fetch_discogs_cover(release_id):
 
 # --- SYNC COVER OVERRIDES TO GITHUB ---
 def sync_to_github(df):
-    g = Github(GITHUB_TOKEN)
-    repo = g.get_repo(GITHUB_REPO)
-    content_file = repo.get_contents("cover_overrides.csv")
+    api_url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/cover_overrides.csv"
+    headers = {
+        "Authorization": f"token {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+
+    # Get the current file SHA
+    r = requests.get(api_url, headers=headers)
+    if r.status_code == 200:
+        sha = r.json()["sha"]
+    else:
+        sha = None
+
     csv_buffer = StringIO()
     df.to_csv(csv_buffer, index=False)
-    repo.update_file(
-        content_file.path,
-        "Batch sync cover_overrides.csv",
-        csv_buffer.getvalue(),
-        content_file.sha,
-    )
+    content = base64.b64encode(csv_buffer.getvalue().encode()).decode()
+
+    payload = {
+        "message": "Sync cover_overrides.csv",
+        "content": content,
+    }
+    if sha:
+        payload["sha"] = sha
+
+    put_response = requests.put(api_url, headers=headers, json=payload)
+    return put_response.status_code in [200, 201]
 
 # --- MAIN ---
 df = load_data()
@@ -141,8 +156,11 @@ if query:
                             cover_overrides.loc[idx, "cover_url"] = new_url
                         else:
                             cover_overrides.loc[len(cover_overrides)] = [album["release_id"], new_url]
-                        sync_to_github(cover_overrides)
-                        st.success("Cover art updated!")
+                        success = sync_to_github(cover_overrides)
+                        if success:
+                            st.success("Cover art updated and synced to GitHub!")
+                        else:
+                            st.error("Failed to sync cover art to GitHub.")
 
             with cols[1]:
                 st.subheader(f"{album['album_title']}")
@@ -158,9 +176,10 @@ if query:
                     tracklist_df = tracklist_df.fillna("").astype(str)
                     st.table(tracklist_df[["Song", "Artist", "Disc", "Track"]])
 
-        # Save batch sync to GitHub
+        # Save batch sync to GitHub at end of search
         if not cover_overrides.empty:
-            try:
-                sync_to_github(cover_overrides)
-            except Exception as e:
-                st.warning(f"GitHub sync warning: {e}")
+            success = sync_to_github(cover_overrides)
+            if success:
+                st.info("Cover art batch synced to GitHub.")
+            else:
+                st.warning("GitHub sync failed.")
