@@ -18,8 +18,10 @@ GITHUB_BRANCH = 'main'
 def load_data():
     try:
         df = pd.read_csv(CSV_FILE, encoding='latin1')
+        
         if 'cover_art' not in df.columns:
             df['cover_art'] = None
+        
         try:
             overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
             if 'release_id' in overrides.columns and 'cover_url' in overrides.columns:
@@ -31,6 +33,7 @@ def load_data():
         except FileNotFoundError:
             st.warning("Cover overrides file not found. Proceeding without overrides.")
             df['cover_art_final'] = df['cover_art']
+            
     except Exception as e:
         st.error(f"Error loading the CSV file: {e}")
         df = pd.DataFrame()
@@ -155,101 +158,91 @@ if search_query:
                     if cover:
                         st.markdown(
                             f'<a href="{cover}" target="_blank">'
-                            f'<img src="{cover}" width="120" style="display: block; margin-left: auto; margin-right: auto;"></a>',
+                            f'<img src="{cover}" width="120"></a>',
                             unsafe_allow_html=True
                         )
                     else:
                         st.text("No cover art")
 
-                    # Small update link under image
-                    update_key = f"update_link_{release_id}"
-                    if st.button("🖼️ Update Cover Art", key=update_key):
-                        st.session_state[f"show_update_{release_id}"] = not st.session_state.get(f"show_update_{release_id}", False)
-
                 with cols[1]:
-                    # Align Album Title and Artist at the top
                     st.markdown(f"### {album_title}")
                     st.markdown(f"**Artist:** {artist}")
 
-                    # Expanded update section
-                    if st.session_state.get(f"show_update_{release_id}", False):
-                        st.markdown("---")
-                        st.subheader(f"Update Cover Art for {album_title}")
-                        new_url = st.text_input("Paste a new cover art URL:", key=f"url_{release_id}")
-                        submit_col, reset_col = st.columns(2)
+                with st.expander("Update Cover Art"):
+                    new_url = st.text_input("Paste a new cover art URL:", key=f"url_{release_id}")
+                    submit_col, reset_col = st.columns(2)
 
-                        with submit_col:
-                            if st.button("Submit new cover art", key=f"submit_{release_id}"):
-                                if new_url:
-                                    new_entry = pd.DataFrame([{'release_id': release_id, 'cover_url': new_url}])
-                                    try:
-                                        existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
-                                        if 'release_id' not in existing.columns or 'cover_url' not in existing.columns:
-                                            existing = pd.DataFrame(columns=['release_id', 'cover_url'])
-                                        existing = existing[existing['release_id'] != release_id]
-                                        updated = pd.concat([existing, new_entry], ignore_index=True)
-                                    except FileNotFoundError:
-                                        updated = new_entry
-
-                                    updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
-                                    commit_message = f"Manual update cover_overrides.csv ({datetime.utcnow().isoformat()} UTC)"
-                                    gh_response = upload_to_github(
-                                        COVER_OVERRIDES_FILE,
-                                        GITHUB_REPO,
-                                        GITHUB_TOKEN,
-                                        GITHUB_BRANCH,
-                                        commit_message
-                                    )
-                                    if gh_response.status_code in [200, 201]:
-                                        st.success("Cover art override saved & synced to GitHub!")
-                                        st.cache_data.clear()
-                                        st.rerun()
-                                    else:
-                                        st.error(f"GitHub sync failed: {gh_response.status_code} - {gh_response.text}")
-                                else:
-                                    st.error("Please enter a valid URL.")
-
-                        with reset_col:
-                            if st.button("Reset to original cover", key=f"reset_{release_id}"):
+                    with submit_col:
+                        if st.button("Submit new cover art", key=f"submit_{release_id}"):
+                            if new_url:
+                                new_entry = pd.DataFrame([{'release_id': release_id, 'cover_url': new_url}])
                                 try:
                                     existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
                                     if 'release_id' not in existing.columns or 'cover_url' not in existing.columns:
                                         existing = pd.DataFrame(columns=['release_id', 'cover_url'])
-                                    updated = existing[existing['release_id'] != release_id]
-                                    updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
-                                    commit_message = f"Reset cover_overrides.csv ({datetime.utcnow().isoformat()} UTC)"
-                                    gh_response = upload_to_github(
-                                        COVER_OVERRIDES_FILE,
-                                        GITHUB_REPO,
-                                        GITHUB_TOKEN,
-                                        GITHUB_BRANCH,
-                                        commit_message
-                                    )
-                                    if gh_response.status_code in [200, 201]:
-                                        st.success("Cover override removed & synced to GitHub!")
-                                        st.cache_data.clear()
-                                        st.rerun()
-                                    else:
-                                        st.error(f"GitHub sync failed: {gh_response.status_code} - {gh_response.text}")
+                                    existing = existing[existing['release_id'] != release_id]
+                                    updated = pd.concat([existing, new_entry], ignore_index=True)
                                 except FileNotFoundError:
-                                    st.success("Cover override removed locally.")
+                                    updated = new_entry
+
+                                updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
+                                commit_message = f"Manual update cover_overrides.csv ({datetime.utcnow().isoformat()} UTC)"
+                                gh_response = upload_to_github(
+                                    COVER_OVERRIDES_FILE,
+                                    GITHUB_REPO,
+                                    GITHUB_TOKEN,
+                                    GITHUB_BRANCH,
+                                    commit_message
+                                )
+                                if gh_response.status_code in [200, 201]:
+                                    st.success("Cover art override saved & synced to GitHub!")
                                     st.cache_data.clear()
                                     st.rerun()
+                                else:
+                                    st.error(f"GitHub sync failed: {gh_response.status_code} - {gh_response.text}")
+                            else:
+                                st.error("Please enter a valid URL.")
 
-                with st.expander("Click to view tracklist"):
-                    tracklist = group[[
-                        'Track Title', 'Artist', 'CD', 'Track Number', 'Format'
-                    ]].rename(columns={
-                        'Track Title': 'Song',
-                        'CD': 'Disc',
-                        'Track Number': 'Track',
-                    }).reset_index(drop=True)
+                    with reset_col:
+                        if st.button("Reset to original cover", key=f"reset_{release_id}"):
+                            try:
+                                existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
+                                if 'release_id' not in existing.columns or 'cover_url' not in existing.columns:
+                                    existing = pd.DataFrame(columns=['release_id', 'cover_url'])
+                                updated = existing[existing['release_id'] != release_id]
+                                updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
+                                commit_message = f"Reset cover_overrides.csv ({datetime.utcnow().isoformat()} UTC)"
+                                gh_response = upload_to_github(
+                                    COVER_OVERRIDES_FILE,
+                                    GITHUB_REPO,
+                                    GITHUB_TOKEN,
+                                    GITHUB_BRANCH,
+                                    commit_message
+                                )
+                                if gh_response.status_code in [200, 201]:
+                                    st.success("Cover override removed & synced to GitHub!")
+                                    st.cache_data.clear()
+                                    st.rerun()
+                                else:
+                                    st.error(f"GitHub sync failed: {gh_response.status_code} - {gh_response.text}")
+                            except FileNotFoundError:
+                                st.success("Cover override removed locally.")
+                                st.cache_data.clear()
+                                st.rerun()
 
-                    st.dataframe(
-                        tracklist,
-                        use_container_width=True,
-                        hide_index=True,
-                    )
+                tracklist = group[[
+                    'Track Title', 'Artist', 'CD', 'Track Number', 'Format'
+                ]].rename(columns={
+                    'Track Title': 'Song',
+                    'CD': 'Disc',
+                    'Track Number': 'Track',
+                }).reset_index(drop=True)
+
+                st.dataframe(
+                    tracklist,
+                    use_container_width=True,
+                    hide_index=True,
+                )
 
         # After all fetches are done: save once & sync to GitHub
         if new_covers:
