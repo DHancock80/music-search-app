@@ -53,7 +53,7 @@ def clean_artist_name(artist):
 def normalize(text):
     return re.sub(r'[^a-z0-9 ]', '', str(text).lower())
 
-def fuzzy_filter(series, query, threshold=60):
+def fuzzy_filter(series, query, threshold=50):
     return series.apply(lambda x: fuzz.token_set_ratio(str(x).lower(), query.lower()) >= threshold)
 
 def search(df, query, search_type, format_filter):
