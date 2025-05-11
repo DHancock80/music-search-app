@@ -1,5 +1,5 @@
 # Full code with all UI elements restored (cover art, tracklist, update cover art, GitHub sync, etc.)
-# Rapidfuzz integrated with improved normalization and all previous functionality preserved
+# Rapidfuzz integrated and all previous functionality preserved
 
 import streamlit as st
 import pandas as pd
@@ -11,7 +11,7 @@ from datetime import datetime
 from rapidfuzz import fuzz
 
 # Constants
-CSV_FILE = 'expanded_discogs_tracklists.csv'
+CSV_FILE = 'expanded_discogs_tracklist.csv'
 COVER_OVERRIDES_FILE = 'cover_overrides.csv'
 DISCOGS_API_TOKEN = st.secrets["DISCOGS_API_TOKEN"]
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
@@ -50,15 +50,13 @@ def clean_artist_name(artist):
     artist = re.sub(r'\s+', ' ', artist).strip()
     return artist
 
-def normalize(text):
-    return re.sub(r'[^a-z0-9 ]', '', str(text).lower())
-
-def fuzzy_filter(series, query, threshold=50):
-    return series.apply(lambda x: fuzz.token_set_ratio(str(x).lower(), query.lower()) >= threshold)
+def fuzzy_filter(series, query, threshold=60):
+    return series.apply(lambda x: fuzz.partial_ratio(str(x).lower(), query.lower()) >= threshold)
 
 def search(df, query, search_type, format_filter):
     if df.empty:
         return df
+    query = query.lower().strip()
     results = df.copy()
 
     if search_type == 'Song Title':
@@ -71,7 +69,7 @@ def search(df, query, search_type, format_filter):
 
     if format_filter != 'All':
         if 'Format' in results.columns:
-            results = results[results['Format'].str.lower() == format_filter.lower()]
+            results = results[results['Format'].str.lower().str.contains(format_filter.lower(), na=False)]
 
     return results
 
