@@ -1,5 +1,5 @@
 # Full code with all UI elements restored (cover art, tracklist, update cover art, GitHub sync, etc.)
-# Rapidfuzz integrated and fuzzy search improved using token_set_ratio for long phrase matching
+# Rapidfuzz integrated with improved normalization and all previous functionality preserved
 
 import streamlit as st
 import pandas as pd
@@ -50,13 +50,16 @@ def clean_artist_name(artist):
     artist = re.sub(r'\s+', ' ', artist).strip()
     return artist
 
-def fuzzy_filter(series, query, threshold=60):
-    return series.apply(lambda x: fuzz.token_set_ratio(str(x).lower(), query.lower()) >= threshold)
+def normalize(text):
+    return re.sub(r'[^a-z0-9 ]', '', str(text).lower())
+
+def fuzzy_filter(series, query, threshold=65):
+    norm_query = normalize(query)
+    return series.apply(lambda x: fuzz.token_set_ratio(normalize(x), norm_query) >= threshold)
 
 def search(df, query, search_type, format_filter):
     if df.empty:
         return df
-    query = query.lower().strip()
     results = df.copy()
 
     if search_type == 'Song Title':
@@ -65,7 +68,7 @@ def search(df, query, search_type, format_filter):
         results['artist_clean'] = results['Artist'].apply(clean_artist_name)
         results = results[fuzzy_filter(results['artist_clean'], query)]
     elif search_type == 'Album':
-    results = results[fuzzy_filter(results['Title'], query)]
+        results = results[fuzzy_filter(results['Title'], query)]
 
     if format_filter != 'All':
         if 'Format' in results.columns:
