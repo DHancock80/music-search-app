@@ -1,4 +1,5 @@
-# Full code with improved fuzzy search for long queries (using process.extract)
+# Full code with all UI elements restored (cover art, tracklist, update cover art, GitHub sync, etc.)
+# Rapidfuzz integrated and all previous functionality preserved
 
 import streamlit as st
 import pandas as pd
@@ -7,7 +8,7 @@ import requests
 import time
 import base64
 from datetime import datetime
-from rapidfuzz import process, fuzz
+from rapidfuzz import fuzz
 
 # Constants
 CSV_FILE = 'expanded_discogs_tracklist.csv'
@@ -49,11 +50,8 @@ def clean_artist_name(artist):
     artist = re.sub(r'\s+', ' ', artist).strip()
     return artist
 
-def fuzzy_match_column(df_column, query, threshold=80):
-    choices = df_column.dropna().unique().tolist()
-    matches = process.extract(query, choices, scorer=fuzz.token_sort_ratio, limit=None)
-    good_matches = [match[0] for match in matches if match[1] >= threshold]
-    return df_column.isin(good_matches)
+def fuzzy_filter(series, query, threshold=60):
+    return series.apply(lambda x: fuzz.partial_ratio(str(x).lower(), query.lower()) >= threshold)
 
 def search(df, query, search_type, format_filter):
     if df.empty:
@@ -62,12 +60,12 @@ def search(df, query, search_type, format_filter):
     results = df.copy()
 
     if search_type == 'Song Title':
-        results = results[fuzzy_match_column(results['Track Title'], query)]
+        results = results[fuzzy_filter(results['Track Title'], query)]
     elif search_type == 'Artist':
         results['artist_clean'] = results['Artist'].apply(clean_artist_name)
-        results = results[fuzzy_match_column(results['artist_clean'], query)]
+        results = results[fuzzy_filter(results['artist_clean'], query)]
     elif search_type == 'Album':
-        results = results[fuzzy_match_column(results['Title'], query)]
+        results = results[fuzzy_filter(results['Title'], query)]
 
     if format_filter != 'All':
         if 'Format' in results.columns:
