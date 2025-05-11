@@ -5,6 +5,7 @@ import requests
 import time
 import base64
 from datetime import datetime
+from rapidfuzz import fuzz  # NEW: using Rapidfuzz for fuzzy search
 
 # Constants
 CSV_FILE = 'expanded_discogs_tracklist.csv'
@@ -46,19 +47,22 @@ def clean_artist_name(artist):
     artist = re.sub(r'\s+', ' ', artist).strip()
     return artist
 
+def fuzzy_filter(series, query, threshold=75):
+    return series.apply(lambda x: fuzz.partial_ratio(str(x).lower(), query.lower()) >= threshold)
+
 def search(df, query, search_type, format_filter):
     if df.empty:
         return df
-    query = query.lower().strip()
+    query = query.strip().lower()
     results = df.copy()
 
     if search_type == 'Song Title':
-        results = results[results['Track Title'].str.lower().str.contains(query, na=False)]
+        results = results[fuzzy_filter(results['Track Title'], query)]
     elif search_type == 'Artist':
         results['artist_clean'] = results['Artist'].apply(clean_artist_name)
-        results = results[results['artist_clean'].str.contains(query, na=False)]
+        results = results[fuzzy_filter(results['artist_clean'], query)]
     elif search_type == 'Album':
-        results = results[results['Title'].str.lower().str.contains(query, na=False)]
+        results = results[fuzzy_filter(results['Title'], query)]
 
     if format_filter != 'All':
         if 'Format' in results.columns:
@@ -88,12 +92,8 @@ def upload_to_github(file_path, repo, token, branch, commit_message):
         content = f.read()
     content_b64 = base64.b64encode(content).decode()
 
-    # Get the current file SHA (if it exists)
     get_resp = requests.get(api_url, headers=headers, params={"ref": branch})
-    if get_resp.status_code == 200:
-        sha = get_resp.json()['sha']
-    else:
-        sha = None
+    sha = get_resp.json()['sha'] if get_resp.status_code == 200 else None
 
     data = {
         "message": commit_message,
@@ -103,14 +103,11 @@ def upload_to_github(file_path, repo, token, branch, commit_message):
     if sha:
         data["sha"] = sha
 
-    response = requests.put(api_url, headers=headers, json=data)
-    return response
+    return requests.put(api_url, headers=headers, json=data)
 
-# Clean page title (no emoji)
 st.title('Music Search App')
 
 df = load_data()
-
 if df.empty:
     st.stop()
 
@@ -120,15 +117,12 @@ format_filter = st.selectbox('Format filter:', ['All', 'Album', 'Single'])
 
 if search_query:
     results = search(df, search_query, search_type, format_filter)
-
     unique_results = results.drop_duplicates()
     st.write(f"### Found {len(unique_results)} result(s)")
 
-    if unique_results.empty:
-        st.info("No results found.")
-    else:
+    if not unique_results.empty:
         cover_cache = {}
-        new_covers = []  # Collect new covers to sync at the end
+        new_covers = []
         grouped = results.groupby('release_id')
 
         for release_id, group in grouped:
@@ -155,23 +149,20 @@ if search_query:
                     if cover:
                         st.markdown(
                             f'<a href="{cover}" target="_blank">'
-                            f'<img src="{cover}" width="120" style="display: block; margin-left: auto; margin-right: auto;"></a>',
+                            f'<img src="{cover}" width="120" style="display: block; margin: 0 auto"></a>',
                             unsafe_allow_html=True
                         )
                     else:
                         st.text("No cover art")
 
-                    # Small update link under image
                     update_key = f"update_link_{release_id}"
                     if st.button("🖼️ Update Cover Art", key=update_key):
                         st.session_state[f"show_update_{release_id}"] = not st.session_state.get(f"show_update_{release_id}", False)
 
                 with cols[1]:
-                    # Align Album Title and Artist at the top
                     st.markdown(f"### {album_title}")
                     st.markdown(f"**Artist:** {artist}")
 
-                    # Expanded update section
                     if st.session_state.get(f"show_update_{release_id}", False):
                         st.markdown("---")
                         st.subheader(f"Update Cover Art for {album_title}")
@@ -193,13 +184,7 @@ if search_query:
 
                                     updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
                                     commit_message = f"Manual update cover_overrides.csv ({datetime.utcnow().isoformat()} UTC)"
-                                    gh_response = upload_to_github(
-                                        COVER_OVERRIDES_FILE,
-                                        GITHUB_REPO,
-                                        GITHUB_TOKEN,
-                                        GITHUB_BRANCH,
-                                        commit_message
-                                    )
+                                    gh_response = upload_to_github(COVER_OVERRIDES_FILE, GITHUB_REPO, GITHUB_TOKEN, GITHUB_BRANCH, commit_message)
                                     if gh_response.status_code in [200, 201]:
                                         st.success("Cover art override saved & synced to GitHub!")
                                         st.cache_data.clear()
@@ -218,19 +203,11 @@ if search_query:
                                     updated = existing[existing['release_id'] != release_id]
                                     updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
                                     commit_message = f"Reset cover_overrides.csv ({datetime.utcnow().isoformat()} UTC)"
-                                    gh_response = upload_to_github(
-                                        COVER_OVERRIDES_FILE,
-                                        GITHUB_REPO,
-                                        GITHUB_TOKEN,
-                                        GITHUB_BRANCH,
-                                        commit_message
-                                    )
+                                    gh_response = upload_to_github(COVER_OVERRIDES_FILE, GITHUB_REPO, GITHUB_TOKEN, GITHUB_BRANCH, commit_message)
                                     if gh_response.status_code in [200, 201]:
                                         st.success("Cover override removed & synced to GitHub!")
                                         st.cache_data.clear()
                                         st.rerun()
-                                    else:
-                                        st.error(f"GitHub sync failed: {gh_response.status_code} - {gh_response.text}")
                                 except FileNotFoundError:
                                     st.success("Cover override removed locally.")
                                     st.cache_data.clear()
@@ -242,16 +219,11 @@ if search_query:
                     ]].rename(columns={
                         'Track Title': 'Song',
                         'CD': 'Disc',
-                        'Track Number': 'Track',
+                        'Track Number': 'Track'
                     }).reset_index(drop=True)
 
-                    st.dataframe(
-                        tracklist,
-                        use_container_width=True,
-                        hide_index=True,
-                    )
+                    st.dataframe(tracklist, use_container_width=True, hide_index=True)
 
-        # After all fetches are done: save once & sync to GitHub
         if new_covers:
             try:
                 existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
@@ -265,10 +237,4 @@ if search_query:
 
             existing.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
             commit_message = f"Batch sync cover_overrides.csv ({datetime.utcnow().isoformat()} UTC)"
-            upload_to_github(
-                COVER_OVERRIDES_FILE,
-                GITHUB_REPO,
-                GITHUB_TOKEN,
-                GITHUB_BRANCH,
-                commit_message
-            )
+            upload_to_github(COVER_OVERRIDES_FILE, GITHUB_REPO, GITHUB_TOKEN, GITHUB_BRANCH, commit_message)
