@@ -50,7 +50,7 @@ def clean_artist_name(artist):
     artist = re.sub(r'\s+', ' ', artist).strip()
     return artist
 
-def fuzzy_filter(series, query, threshold=65):
+def fuzzy_filter(series, query, threshold=60):
     return series.apply(lambda x: fuzz.token_set_ratio(str(x).lower(), query.lower()) >= threshold)
 
 def search(df, query, search_type, format_filter):
@@ -65,7 +65,7 @@ def search(df, query, search_type, format_filter):
         results['artist_clean'] = results['Artist'].apply(clean_artist_name)
         results = results[fuzzy_filter(results['artist_clean'], query)]
     elif search_type == 'Album':
-        results = results[fuzzy_filter(results['Title'], query)]
+    results = results[fuzzy_filter(results['Title'], query)]
 
     if format_filter != 'All':
         if 'Format' in results.columns:
