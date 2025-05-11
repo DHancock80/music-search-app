@@ -1,4 +1,5 @@
-# Full code with improved fuzzy search using Rapidfuzz's process.extract() for album titles
+# Full code with all UI elements restored (cover art, tracklist, update cover art, GitHub sync, etc.)
+# Rapidfuzz integrated and all previous functionality preserved
 
 import streamlit as st
 import pandas as pd
@@ -7,7 +8,7 @@ import requests
 import time
 import base64
 from datetime import datetime
-from rapidfuzz import fuzz, process
+from rapidfuzz import process, fuzz
 
 # Constants
 CSV_FILE = 'expanded_discogs_tracklist.csv'
@@ -49,14 +50,10 @@ def clean_artist_name(artist):
     artist = re.sub(r'\s+', ' ', artist).strip()
     return artist
 
-def fuzzy_album_search(df, query, threshold=75):
-    titles = df['Title'].dropna().unique()
-    matches = process.extract(query, titles, scorer=fuzz.partial_ratio, score_cutoff=threshold)
-    matched_titles = [title for title, score, _ in matches]
-    return df[df['Title'].isin(matched_titles)]
-
-def fuzzy_filter(series, query, threshold=80):
-    return series.apply(lambda x: fuzz.partial_ratio(str(x).lower(), query.lower()) >= threshold)
+def fuzzy_match_column(df, column, query, threshold=80):
+    matches = process.extract(query, df[column].dropna().unique(), scorer=fuzz.token_set_ratio, limit=None)
+    matched_values = [match[0] for match in matches if match[1] >= threshold]
+    return df[df[column].isin(matched_values)]
 
 def search(df, query, search_type, format_filter):
     if df.empty:
@@ -65,12 +62,12 @@ def search(df, query, search_type, format_filter):
     results = df.copy()
 
     if search_type == 'Song Title':
-        results = results[fuzzy_filter(results['Track Title'], query)]
+        results = fuzzy_match_column(results, 'Track Title', query)
     elif search_type == 'Artist':
         results['artist_clean'] = results['Artist'].apply(clean_artist_name)
-        results = results[fuzzy_filter(results['artist_clean'], query)]
+        results = fuzzy_match_column(results, 'artist_clean', query)
     elif search_type == 'Album':
-        results = fuzzy_album_search(results, query)
+        results = fuzzy_match_column(results, 'Title', query)
 
     if format_filter != 'All':
         if 'Format' in results.columns:
