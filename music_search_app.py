@@ -156,11 +156,8 @@ if search_query:
             first_row = group.iloc[0]
             album_title = first_row['Title']
             album_format = first_row.get('Format', '').lower()
-            display_artist = "Various" if any(x in album_format for x in ['compilation', 'comp']) else first_row['Artist']
-
-            if display_artist == "Various":
-                group = group.copy()
-                group['Artist'] = group['Artist']  # Keep original artist names
+            is_compilation = any(x in album_format for x in ['compilation', 'comp'])
+            display_artist = "Various" if is_compilation else first_row['Artist']
 
             cover = first_row.get('cover_art_final')
             if (pd.isna(cover) or str(cover).strip() == '') and pd.notna(release_id):
