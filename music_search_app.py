@@ -95,17 +95,32 @@ if search_query:
     if results.empty:
         st.info("No results found.")
     else:
-        for _, row in results.iterrows():
-            st.subheader(f"{row['Track Title']} - {row['Artist']}")
-            st.write(f"**Album:** {row['Title']}")
-            st.write(f"**Disc:** {row.get('CD', 'N/A')} | **Track:** {row.get('Track Number', 'N/A')}")
-            st.write(f"**Format:** {row.get('Format', 'N/A')}")
-            
-            cover = row.get('cover_art_final') or row.get('cover_art')
-            if pd.notna(cover):
-                st.image(cover, caption='Cover Art', use_column_width=True)
-            else:
-                st.text('No cover art available.')
+        # Prepare a compact DataFrame for display
+        compact_results = results[[
+            'Track Title', 'Artist', 'Title', 'CD', 'Track Number', 'Format'
+        ]].rename(columns={
+            'Track Title': 'Song',
+            'Title': 'Album',
+            'CD': 'Disc',
+            'Track Number': 'Track',
+            'Format': 'Format'
+        }).reset_index(drop=True)
+        
+        st.write("#### Results (sortable & filterable table)")
+        st.data_editor(
+            compact_results,
+            use_container_width=True,
+            hide_index=True,
+            disabled=True  # Makes it read-only
+        )
+        
+        # Optional: Toggle to show cover art thumbnails below the table
+        if st.checkbox("Show cover art thumbnails?"):
+            st.write("#### Cover Art")
+            for _, row in results.iterrows():
+                cover = row.get('cover_art_final') or row.get('cover_art')
+                if pd.notna(cover):
+                    st.image(cover, caption=f"{row['Track Title']} - {row['Artist']}", width=150)
 
 # Optional: File uploader for cover art corrections
 st.write("---")
