@@ -99,6 +99,10 @@ st.markdown("""
         margin-bottom: 20px;
         background-color: #f9f9f9;
     }
+    .thumbnail {
+        display: block;
+        margin-bottom: 10px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -134,10 +138,12 @@ if search_query:
                 # Thumbnail
                 with cols[0]:
                     if cover:
-                        st.image(cover, width=80)
-                        if st.button(f"View Larger {idx}", key=f"btn_{idx}"):
-                            with st.modal(f"{row['Track Title']} - {row['Artist']}"):
-                                st.image(cover, caption=f"{row['Track Title']} - {row['Artist']}", use_column_width=True)
+                        # Make thumbnail clickable to open full image in new tab
+                        st.markdown(
+                            f'<a href="{cover}" target="_blank">'
+                            f'<img src="{cover}" width="80" class="thumbnail"></a>',
+                            unsafe_allow_html=True
+                        )
                     else:
                         st.text("No cover art")
 
