@@ -43,7 +43,7 @@ def clean_artist_name(artist):
     if pd.isna(artist):
         return ''
     artist = artist.lower()
-    artist = re.sub(r'[\*\(\)\[\]#]', '', artist)
+    artist = re.sub(r'[\*\(\)\[#]', '', artist)
     artist = re.sub(r'\s*(feat\.|ft\.|featuring)\s*', ' ', artist)
     artist = artist.replace('&', ' ').replace(',', ' ')
     artist = re.sub(r'\s+', ' ', artist).strip()
@@ -157,6 +157,10 @@ if search_query:
             album_title = first_row['Title']
             album_format = first_row.get('Format', '').lower()
             display_artist = "Various" if any(x in album_format for x in ['compilation', 'comp']) else first_row['Artist']
+
+            if display_artist == "Various":
+                group = group.copy()
+                group['Artist'] = group['Artist']  # Keep original artist names
 
             cover = first_row.get('cover_art_final')
             if (pd.isna(cover) or str(cover).strip() == '') and pd.notna(release_id):
