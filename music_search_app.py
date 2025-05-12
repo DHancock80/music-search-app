@@ -188,12 +188,12 @@ if search_query:
                     st.markdown(f"**Artist:** {album_artist}")
 
                 with st.expander("Click to view tracklist", expanded=False):
-                    tracklist = group[['Artist', 'Track Title', 'CD', 'Track Number']].copy()
-                    tracklist['Artist'] = tracklist['Artist'].fillna("Unknown")
-                    tracklist = tracklist.sort_values(by=['CD', 'Track Number'])
-                    tracklist = tracklist.rename(columns={
-                        'Track Title': 'Song',
-                        'CD': 'Disc',
-                        'Track Number': 'Track'
-                    })
-                    st.dataframe(tracklist, use_container_width=True, hide_index=True)
+tracklist = group[['Artist', 'Track Title', 'CD', 'Track Number']].copy()
+tracklist = tracklist.rename(columns={
+    'Track Title': 'Song',
+    'CD': 'Disc',
+    'Track Number': 'Track'
+})
+tracklist['Artist'] = tracklist['Artist'].fillna("Unknown")
+tracklist = tracklist.sort_values(by=['Disc', 'Track'])
+st.dataframe(tracklist[['Song', 'Artist', 'Disc', 'Track']], use_container_width=True, hide_index=True)
