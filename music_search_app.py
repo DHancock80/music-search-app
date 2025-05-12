@@ -183,13 +183,13 @@ if search_query:
                         st.session_state.expanded_cover_id = release_id if st.session_state.expanded_cover_id != release_id else None
 
                 with cols[1]:
-                    st.markdown(f"### {album_title}")
-                    st.markdown(f"**Artist:** {display_artist}")
+    st.markdown(f"### {album_title}")
+    st.markdown(f"**Artist:** {display_artist}")
 
-                    with st.expander("Click to view tracklist", expanded=False):
-                        tracklist = group[['Track Title', 'Artist', 'CD', 'Track Number']].copy().rename(columns={
-                            'Track Title': 'Song',
-                            'CD': 'Disc',
-                            'Track Number': 'Track'
-                        })
-                        st.dataframe(tracklist, use_container_width=True, hide_index=True)
+with st.expander("Click to view tracklist", expanded=False):
+    tracklist = group[['Track Title', 'Artist', 'CD', 'Track Number']].copy().rename(columns={
+        'Track Title': 'Song',
+        'CD': 'Disc',
+        'Track Number': 'Track'
+    })
+    st.dataframe(tracklist, use_container_width=True, hide_index=True)
