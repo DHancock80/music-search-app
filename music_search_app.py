@@ -1,4 +1,4 @@
-import streamlit as st
+""import streamlit as st
 import pandas as pd
 import re
 import requests
@@ -189,13 +189,14 @@ if search_query:
 
             with st.expander("Click to view tracklist", expanded=False):
                 tracklist = group[['Track Title', 'Artist', 'CD', 'Track Number']].copy()
+                if is_compilation:
+                    tracklist['Artist'] = group['Artist'].values  # assign before renaming
+
                 tracklist = tracklist.rename(columns={
                     'Track Title': 'Song',
                     'Artist': 'Artist',
                     'CD': 'Disc',
                     'Track Number': 'Track'
                 })
-                if is_compilation:
-                    tracklist['Artist'] = group['Artist'].values
 
                 st.dataframe(tracklist, use_container_width=True, hide_index=True)
