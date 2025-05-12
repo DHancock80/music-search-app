@@ -188,25 +188,13 @@ if search_query:
                     st.markdown(f"**Artist:** {album_artist}")
 
                 with st.expander("Click to view tracklist", expanded=False):
-                    tracklist = group[['Artist', 'Track Title', 'CD', 'Track Number']].copy()
+                    tracklist = df[df['release_id'] == release_id][['Artist', 'Track Title', 'CD', 'Track Number']].copy()
                     tracklist = tracklist.rename(columns={
                         'Track Title': 'Song',
                         'CD': 'Disc',
                         'Track Number': 'Track'
                     })
                     tracklist['Artist'] = tracklist['Artist'].fillna("Unknown")
-
-                    true_tracks = df[(df['release_id'] == release_id) &
-                                     (df['Track Title'].isin(tracklist['Song'])) &
-                                     (df['Track Number'].isin(tracklist['Track']))]
-                    if not true_tracks.empty:
-                        tracklist = pd.merge(tracklist,
-                                             true_tracks[['Track Title', 'Track Number', 'Artist']],
-                                             left_on=['Song', 'Track'],
-                                             right_on=['Track Title', 'Track Number'],
-                                             how='left', suffixes=('', '_true'))
-                        tracklist['Artist'] = tracklist['Artist_true'].fillna(tracklist['Artist'])
-                        tracklist.drop(columns=['Track Title', 'Track Number', 'Artist_true'], inplace=True)
-
                     tracklist = tracklist.sort_values(by=['Disc', 'Track'])
+
                     st.dataframe(tracklist[['Song', 'Artist', 'Disc', 'Track']], use_container_width=True, hide_index=True)
