@@ -157,7 +157,7 @@ if search_query:
             album_title = first_row['Title']
             album_format = first_row.get('Format', '').lower()
             is_compilation = any(x in album_format for x in ['compilation', 'comp'])
-            display_artist = "Various" if is_compilation else first_row['Artist']
+            album_artist = "Various" if is_compilation else first_row['Artist']
 
             cover = first_row.get('cover_art_final')
             if (pd.isna(cover) or str(cover).strip() == '') and pd.notna(release_id):
@@ -185,7 +185,7 @@ if search_query:
 
                 with cols[1]:
                     st.markdown(f"### {album_title}")
-                    st.markdown(f"**Artist:** {display_artist}")
+                    st.markdown(f"**Artist:** {album_artist}")
 
             with st.expander("Click to view tracklist", expanded=False):
                 tracklist = group[['Track Title', 'Artist', 'CD', 'Track Number']].copy()
