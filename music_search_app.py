@@ -190,4 +190,6 @@ if search_query:
             with st.expander("Click to view tracklist", expanded=False):
                 tracklist = group[['Track Title', 'Artist', 'CD', 'Track Number']].copy()
                 tracklist.columns = ['Song', 'Artist', 'Disc', 'Track']
+                if is_compilation:
+                    tracklist['Artist'] = group['Artist'].values
                 st.dataframe(tracklist, use_container_width=True, hide_index=True)
