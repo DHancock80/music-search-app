@@ -187,18 +187,16 @@ if search_query:
                     st.markdown(f"### {album_title}")
                     st.markdown(f"**Artist:** {album_artist}")
 
-            st.subheader("DEBUG Artist Sample")
-st.write(group[['Track Title', 'Artist']].head(10))
+                with st.expander("Click to view tracklist", expanded=False):
+                    tracklist = group[['Track Title', 'Artist', 'CD', 'Track Number']].copy()
+                    tracklist = tracklist.rename(columns={
+                        'Track Title': 'Song',
+                        'Artist': 'Artist',
+                        'CD': 'Disc',
+                        'Track Number': 'Track'
+                    })
+                    st.dataframe(tracklist, use_container_width=True, hide_index=True)
 
-with st.expander("Click to view tracklist", expanded=False):
-                # Always use actual artist per track, even for compilations
-                tracklist = group[['Track Title', 'Artist', 'CD', 'Track Number']].copy()
-
-                tracklist = tracklist.rename(columns={
-                    'Track Title': 'Song',
-                    'Artist': 'Artist',
-                    'CD': 'Disc',
-                    'Track Number': 'Track'
-                })
-
-                st.dataframe(tracklist, use_container_width=True, hide_index=True)
+                # DEBUGGING
+                st.markdown("**DEBUG Artist Sample**")
+                st.write(group[['Track Title', 'Artist']].head(10))
