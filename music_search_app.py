@@ -197,7 +197,3 @@ if search_query:
                         'Track Number': 'Track'
                     })
                     st.dataframe(tracklist, use_container_width=True, hide_index=True)
-
-                # DEBUGGING
-                st.markdown("**DEBUG Artist Sample**")
-                st.write(group[['Track Title', 'Artist']].head(10))
