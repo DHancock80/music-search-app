@@ -94,6 +94,14 @@ st.markdown("""
 
 df = load_data()
 
+# ✅ 📂 Debug expander to show current cover_overrides.csv
+with st.expander("📂 View current cover_overrides.csv (debugging)"):
+    try:
+        overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
+        st.dataframe(overrides)
+    except FileNotFoundError:
+        st.info("No cover_overrides.csv file found yet.")
+
 if df.empty:
     st.stop()
 
