@@ -1,4 +1,5 @@
-# Full code with all UI elements restored and format filter substring-matching fix
+# Full code with all UI elements restored (cover art, tracklist, update cover art, GitHub sync, etc.)
+# Rapidfuzz integrated and all previous functionality preserved
 
 import streamlit as st
 import pandas as pd
@@ -10,7 +11,7 @@ from datetime import datetime
 from rapidfuzz import fuzz
 
 # Constants
-CSV_FILE = 'expanded_discogs_tracklists.csv'
+CSV_FILE = 'expanded_discogs_tracklist.csv'
 COVER_OVERRIDES_FILE = 'cover_overrides.csv'
 DISCOGS_API_TOKEN = st.secrets["DISCOGS_API_TOKEN"]
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
@@ -34,6 +35,7 @@ def load_data():
         except FileNotFoundError:
             st.warning("Cover overrides file not found. Proceeding without overrides.")
             df['cover_art_final'] = df['cover_art']
+        df['format_category'] = df['Format'].apply(categorize_format)
     except Exception as e:
         st.error(f"Error loading the CSV file: {e}")
         df = pd.DataFrame()
@@ -49,18 +51,21 @@ def clean_artist_name(artist):
     artist = re.sub(r'\s+', ' ', artist).strip()
     return artist
 
+def categorize_format(fmt):
+    if pd.isna(fmt):
+        return 'Other'
+    fmt = fmt.lower()
+    if 'video' in fmt:
+        return 'Video'
+    elif 'single' in fmt:
+        return 'Single'
+    elif 'album' in fmt or 'compilation' in fmt:
+        return 'Album'
+    else:
+        return 'Other'
+
 def fuzzy_filter(series, query, threshold=60):
     return series.apply(lambda x: fuzz.partial_ratio(str(x).lower(), query.lower()) >= threshold)
-
-def map_format(value):
-    value = str(value).lower()
-    if any(f in value for f in ['album', 'comp']):
-        return 'Album'
-    if 'single' in value:
-        return 'Single'
-    if any(f in value for f in ['video', 'dvd']):
-        return 'Video'
-    return 'Other'
 
 def search(df, query, search_type, format_filter):
     if df.empty:
@@ -76,9 +81,8 @@ def search(df, query, search_type, format_filter):
     elif search_type == 'Album':
         results = results[fuzzy_filter(results['Title'], query)]
 
-    results['Format Category'] = results['Format'].apply(map_format)
     if format_filter != 'All':
-        results = results[results['Format Category'] == format_filter]
+        results = results[results['format_category'] == format_filter]
 
     return results
 
