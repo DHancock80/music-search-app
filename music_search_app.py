@@ -11,7 +11,7 @@ from datetime import datetime
 from rapidfuzz import fuzz
 
 # Constants
-CSV_FILE = 'expanded_discogs_tracklist.csv'
+CSV_FILE = 'expanded_discogs_tracklists.csv'
 COVER_OVERRIDES_FILE = 'cover_overrides.csv'
 DISCOGS_API_TOKEN = st.secrets["DISCOGS_API_TOKEN"]
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
@@ -40,6 +40,13 @@ def load_data():
         df = pd.DataFrame()
     return df
 
+def clean_text(text):
+    if pd.isna(text):
+        return ''
+    text = str(text).lower()
+    text = re.sub(r"[\W_]+", "", text)  # Remove all non-alphanumeric characters
+    return text
+
 def clean_artist_name(artist):
     if pd.isna(artist):
         return ''
@@ -51,12 +58,13 @@ def clean_artist_name(artist):
     return artist
 
 def fuzzy_filter(series, query, threshold=60):
-    return series.apply(lambda x: fuzz.partial_ratio(str(x).lower(), query.lower()) >= threshold)
+    query_clean = clean_text(query)
+    return series.apply(lambda x: fuzz.partial_ratio(clean_text(x), query_clean) >= threshold)
 
 def search(df, query, search_type, format_filter):
     if df.empty:
         return df
-    query = query.lower().strip()
+    query = query.strip()
     results = df.copy()
 
     if search_type == 'Song Title':
@@ -68,8 +76,13 @@ def search(df, query, search_type, format_filter):
         results = results[fuzzy_filter(results['Title'], query)]
 
     if format_filter != 'All':
-        if 'Format' in results.columns:
-            results = results[results['Format'].str.lower().str.contains(format_filter.lower(), na=False)]
+        format_keywords = {
+            'Album': ['album', 'comp', '2xcd', 'cd'],
+            'Single': ['single'],
+            'Video': ['video']
+        }
+        keywords = format_keywords.get(format_filter, [])
+        results = results[results['Format'].fillna('').str.lower().apply(lambda x: any(k in x for k in keywords))]
 
     return results
 
@@ -116,7 +129,7 @@ if df.empty:
 
 search_query = st.text_input('Enter your search:', '')
 search_type = st.radio('Search by:', ['Song Title', 'Artist', 'Album'], horizontal=True)
-format_filter = st.selectbox('Format filter:', ['All', 'Album', 'Single'])
+format_filter = st.selectbox('Format filter:', ['All', 'Album', 'Single', 'Video'])
 
 if search_query:
     results = search(df, search_query, search_type, format_filter)
