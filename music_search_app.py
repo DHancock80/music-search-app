@@ -234,8 +234,7 @@ if search_query:
     'Track Title': 'Song',
     'CD': 'Disc',
     'Track Number': 'Track'
-})
-
+}).rename(columns={
                             'Track Title': 'Song',
                             'CD': 'Disc',
                             'Track Number': 'Track'
