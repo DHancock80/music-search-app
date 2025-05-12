@@ -127,21 +127,34 @@ if search_query:
                     st.markdown(f"### {album_title}")
                     st.markdown(f"**Artist:** {artist}")
 
-                # Update Cover Art expander (now BELOW cover & info, ABOVE table)
+                # Update Cover Art expander (below header, above table)
                 with st.expander("Update Cover Art"):
                     new_url = st.text_input("Paste a new cover art URL:", key=f"url_{release_id}")
-                    if st.button("Submit new cover art", key=f"submit_{release_id}"):
-                        if new_url:
-                            new_entry = pd.DataFrame([{'release_id': release_id, 'cover_url': new_url}])
+                    submit_col, reset_col = st.columns(2)
+
+                    with submit_col:
+                        if st.button("Submit new cover art", key=f"submit_{release_id}"):
+                            if new_url:
+                                new_entry = pd.DataFrame([{'release_id': release_id, 'cover_url': new_url}])
+                                try:
+                                    existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
+                                    updated = pd.concat([existing, new_entry], ignore_index=True)
+                                except FileNotFoundError:
+                                    updated = new_entry
+                                updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
+                                st.success("Cover art override saved! Please reload the app to see changes.")
+                            else:
+                                st.error("Please enter a valid URL.")
+
+                    with reset_col:
+                        if st.button("Reset to original cover", key=f"reset_{release_id}"):
                             try:
                                 existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
-                                updated = pd.concat([existing, new_entry], ignore_index=True)
+                                updated = existing[existing['release_id'] != release_id]
+                                updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
+                                st.success("Cover override removed! Reload to see original cover.")
                             except FileNotFoundError:
-                                updated = new_entry
-                            updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
-                            st.success("Cover art override saved! Please reload the app to see changes.")
-                        else:
-                            st.error("Please enter a valid URL.")
+                                st.info("No override found to remove.")
 
                 # Tracklist table (no index column)
                 tracklist = group[[
