@@ -189,9 +189,10 @@ if search_query:
 
                 with st.expander("Click to view tracklist", expanded=False):
                     tracklist = group[['Track Title', 'Artist', 'CD', 'Track Number']].copy()
+                    tracklist['Artist'] = tracklist['Artist'].fillna("Unknown")
+                    tracklist = tracklist.sort_values(by=['CD', 'Track Number'])
                     tracklist = tracklist.rename(columns={
                         'Track Title': 'Song',
-                        'Artist': 'Artist',
                         'CD': 'Disc',
                         'Track Number': 'Track'
                     })
