@@ -1,133 +1,114 @@
 import streamlit as st
 import pandas as pd
-import requests
 import os
 
-# ---------- CONFIG ----------
-CSV_FILE = 'expanded_discogs_tracklists.csv'
-COVER_OVERRIDES_FILE = 'cover_overrides.csv'
-DISCOGS_API_BASE = 'https://api.discogs.com/releases/'
-DISCOGS_API_TOKEN = os.getenv('DISCOGS_API_TOKEN')  # set your Discogs token as environment variable
+# ---------- SETTINGS ----------
+CSV_FILE = "expanded_discogs_tracklists.csv"
+COVER_OVERRIDE_FILE = "cover_overrides.csv"
 
-# ---------- FUNCTIONS ----------
+# ---------- LOAD DATA ----------
 @st.cache_data
 def load_data():
     try:
-        df = pd.read_csv(CSV_FILE)
-    except UnicodeDecodeError:
         df = pd.read_csv(CSV_FILE, encoding='latin1')
-    if 'release_id' not in df.columns:
-        st.error("CSV file must include 'release_id' column.")
-    return df
+        cover_overrides = pd.read_csv(COVER_OVERRIDE_FILE)
+    except Exception as e:
+        st.error(f"Error loading the CSV file: {e}")
+        return None, None
+    return df, cover_overrides
 
-@st.cache_data
-def load_cover_overrides():
-    try:
-        return pd.read_csv(COVER_OVERRIDES_FILE)
-    except:
-        return pd.DataFrame(columns=['release_id', 'cover_url'])
+df, cover_overrides = load_data()
+if df is None:
+    st.stop()
 
-def save_cover_override(release_id, url):
-    overrides = load_cover_overrides()
-    overrides = overrides[overrides['release_id'] != release_id]
-    overrides = pd.concat([overrides, pd.DataFrame({'release_id': [release_id], 'cover_url': [url]})])
-    overrides.to_csv(COVER_OVERRIDES_FILE, index=False)
+# ---------- TITLE ----------
+st.markdown("# Music Search App")
 
-def remove_cover_override(release_id):
-    overrides = load_cover_overrides()
-    overrides = overrides[overrides['release_id'] != release_id]
-    overrides.to_csv(COVER_OVERRIDES_FILE, index=False)
+# ---------- SEARCH BAR ----------
+st.write("Enter your search:")
+query = st.text_input("", value="")
 
-def fetch_cover_from_discogs(release_id):
-    try:
-        headers = {'Authorization': f'Discogs token={DISCOGS_API_TOKEN}'} if DISCOGS_API_TOKEN else {}
-        res = requests.get(DISCOGS_API_BASE + str(release_id), headers=headers)
-        if res.status_code == 200:
-            data = res.json()
-            return data['images'][0]['uri'] if 'images' in data and data['images'] else None
-    except:
-        pass
-    return None
+st.write("Search by:")
+search_type = st.radio("", ["Song Title", "Artist", "Album"], index=0)
 
-# ---------- MAIN APP ----------
-st.title('Music Search App')
+# ---------- FORMAT FILTER ----------
+st.write("Format filter:")
+format_filter = st.selectbox("", ["All", "Album", "Single", "Video"])
 
-df = load_data()
-covers_df = load_cover_overrides()
+# ---------- SEARCH LOGIC ----------
+if query:
+    query_lower = query.lower()
 
-search_query = st.text_input("Enter your search:")
-search_type = st.radio("Search by:", ('Song Title', 'Artist', 'Album'), horizontal=True)
-format_filter = st.selectbox("Format filter:", options=['All', 'Album'])
-
-if search_query:
-    # --- Filter results ---
-    if search_type == 'Song Title':
-        results = df[df['Track Title'].str.contains(search_query, case=False, na=False)]
-    elif search_type == 'Artist':
-        results = df[df['Artist'].str.contains(search_query, case=False, na=False)]
+    if search_type == "Song Title":
+        results = df[df['Track Title'].str.lower().str.contains(query_lower, na=False)]
+    elif search_type == "Artist":
+        results = df[df['Artist'].str.lower().str.contains(query_lower, na=False)]
+    elif search_type == "Album":
+        results = df[df['Title'].str.lower().str.contains(query_lower, na=False)]
     else:
-        results = df[df['Title'].str.contains(search_query, case=False, na=False)]
+        results = df.copy()
 
-    # --- Apply format filter ---
-    if format_filter == 'Album':
-        album_keywords = ['album', 'compilation', 'comp', 'cd']
-        results = results[results['Format'].str.contains('|'.join(album_keywords), case=False, na=False)]
+    # Apply format filter
+    if format_filter != "All":
+        results = results[results['Format'].str.lower().str.contains(format_filter.lower(), na=False)]
 
-    if results.empty:
-        st.warning("No results found.")
-    else:
-        if search_type == 'Album' or format_filter == 'Album':
-            grouped = results.groupby(['release_id', 'Title'])
-            st.subheader(f"Found {grouped.ngroups} album(s)")
+    # ---------- DISPLAY RESULTS ----------
+    if search_type == "Album" and format_filter == "Album":
+        # Group by release_id to show albums only
+        album_groups = results.groupby('release_id')
+        st.markdown(f"**Found {len(album_groups)} album(s)**")
+        for release_id, group in album_groups:
+            album_info = group.iloc[0]
+            cover_url = None
 
-            for (release_id, album_title), group in grouped:
-                album_artist = group['Artist'].iloc[0]
-                unique_artists = group['Artist'].dropna().unique()
+            # Check cover override first
+            override_match = cover_overrides[cover_overrides['release_id'] == release_id]
+            if not override_match.empty:
+                cover_url = override_match.iloc[0]['cover_url']
 
-                display_artist = album_artist
-                if len(unique_artists) > 1:
-                    display_artist = "Various Artists"
-
-                # Cover art
-                cover_url_row = covers_df[covers_df['release_id'] == release_id]
-                if not cover_url_row.empty:
-                    cover_url = cover_url_row['cover_url'].values[0]
+            # Display cover art
+            cols = st.columns([1, 6])
+            with cols[0]:
+                if cover_url:
+                    st.image(cover_url, width=100)
                 else:
-                    cover_url = fetch_cover_from_discogs(release_id)
-                    if cover_url:
-                        save_cover_override(release_id, cover_url)
+                    st.image("https://via.placeholder.com/100x100?text=No+Image", width=100)
 
-                cols = st.columns([1, 4])
-                with cols[0]:
-                    if cover_url:
-                        st.image(cover_url, width=120)
-                    else:
-                        st.write("No cover available")
+            with cols[1]:
+                st.subheader(album_info['Title'])
+                artist_display = album_info['Artist']
+                if artist_display.lower() in ["various", "various artists"]:
+                    artist_display = "Various Artists"
+                st.markdown(f"**Artist:** {artist_display}")
 
-                with cols[1]:
-                    st.markdown(f"**{album_title}**")
-                    st.markdown(f"*Artist: {display_artist}*")
+                # --- Cover Art Update Form ---
+                with st.expander("Update Cover Art"):
+                    new_cover_url = st.text_input(f"Paste a new cover art URL for Release ID {release_id}:")
+                    if st.button(f"Submit new cover art for {release_id}"):
+                        if new_cover_url:
+                            updated = cover_overrides[cover_overrides['release_id'] != release_id]
+                            new_row = pd.DataFrame({
+                                'release_id': [release_id],
+                                'cover_url': [new_cover_url]
+                            })
+                            updated = pd.concat([updated, new_row], ignore_index=True)
+                            updated.to_csv(COVER_OVERRIDE_FILE, index=False)
+                            st.success("✅ Cover art updated! Please reload the app to see changes.")
+                        else:
+                            st.warning("⚠️ Please enter a valid URL.")
 
-                    with st.expander("Click to view tracklist"):
-                        display_cols = ['Track Title', 'Artist', 'CD', 'Track Number']
-                        tracklist_df = group[display_cols].rename(columns={
-                            'Track Title': 'Song',
-                            'CD': 'Disc',
-                            'Track Number': 'Track'
-                        }).reset_index(drop=True)
-                        st.dataframe(tracklist_df, hide_index=True)
+                # --- Tracklist ---
+                with st.expander("Click to view tracklist"):
+                    tracklist = group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
+                        'Track Title': 'Song',
+                        'Artist': 'Artist',
+                        'CD': 'Disc',
+                        'Track Number': 'Track'
+                    }).reset_index(drop=True)
+                    st.dataframe(tracklist, hide_index=True, use_container_width=True)
 
-                    with st.expander("Update Cover Art"):
-                        new_url = st.text_input("Paste a new cover art URL:", key=f"url_{release_id}")
-                        submit = st.button("Submit new cover art", key=f"submit_{release_id}")
-                        reset = st.button("Reset to original cover", key=f"reset_{release_id}")
+    else:
+        # Show full results in table mode
+        st.markdown(f"**Found {len(results)} result(s)**")
+        st.dataframe(results.drop(columns=['Unnamed: 0'], errors='ignore'), use_container_width=True)
 
-                        if submit and new_url:
-                            save_cover_override(release_id, new_url)
-                            st.success("Cover art updated. Reload the page to see changes.")
-                        if reset:
-                            remove_cover_override(release_id)
-                            st.success("Cover art reset. Reload the page to fetch original cover.")
-        else:
-            st.subheader(f"Found {len(results)} result(s)")
-            st.dataframe(results.reset_index(drop=True))
