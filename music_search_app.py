@@ -11,17 +11,17 @@ def load_data():
     try:
         df = pd.read_csv(CSV_FILE, encoding='latin1')
         
-        # Check if cover art is in the main CSV
+        # Add cover_art column if missing
         if 'cover_art' not in df.columns:
-            df['cover_art'] = None  # Add empty column if missing
+            df['cover_art'] = None  # No default cover art yet
         
         # Load cover overrides if available
         try:
             overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
-            if 'release_id' in overrides.columns and 'cover_url' in overrides.columns:
+            if 'release_id' in overrides.columns and 'custom_cover_url' in overrides.columns:
                 df = df.merge(overrides, on='release_id', how='left', suffixes=('', '_override'))
-                # Use override if available
-                df['cover_art_final'] = df['cover_url'].combine_first(df['cover_art'])
+                # Use custom_cover_url if available
+                df['cover_art_final'] = df['custom_cover_url'].combine_first(df['cover_art'])
             else:
                 df['cover_art_final'] = df['cover_art']
         except FileNotFoundError:
@@ -36,7 +36,6 @@ def load_data():
 def clean_artist_name(artist):
     if pd.isna(artist):
         return ''
-    # Lowercase, remove special characters, handle feat./ft./&/, variations
     artist = artist.lower()
     artist = re.sub(r'[\*\(\)\[\]#]', '', artist)
     artist = re.sub(r'\s*(feat\.|ft\.|featuring)\s*', ' ', artist)
@@ -46,8 +45,7 @@ def clean_artist_name(artist):
 
 def search(df, query, search_type, format_filter):
     if df.empty:
-        return df  # Return empty if no data loaded
-    
+        return df
     query = query.lower().strip()
     results = df.copy()
 
@@ -95,7 +93,6 @@ if search_query:
     if results.empty:
         st.info("No results found.")
     else:
-        # Prepare a compact DataFrame for display
         compact_results = results[[
             'Track Title', 'Artist', 'Title', 'CD', 'Track Number', 'Format'
         ]].rename(columns={
@@ -111,10 +108,9 @@ if search_query:
             compact_results,
             use_container_width=True,
             hide_index=True,
-            disabled=True  # Makes it read-only
+            disabled=True
         )
         
-        # Optional: Toggle to show cover art thumbnails below the table
         if st.checkbox("Show cover art thumbnails?"):
             st.write("#### Cover Art")
             for _, row in results.iterrows():
@@ -131,8 +127,7 @@ release_id = st.text_input("Enter the release ID to update")
 
 if cover_url and release_id:
     try:
-        # Append the new override to the CSV
-        new_entry = pd.DataFrame([{'release_id': release_id, 'cover_url': cover_url}])
+        new_entry = pd.DataFrame([{'release_id': release_id, 'custom_cover_url': cover_url}])
         try:
             existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
             updated = pd.concat([existing, new_entry], ignore_index=True)
