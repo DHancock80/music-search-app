@@ -114,51 +114,38 @@ if df.empty:
 search_query = st.text_input('Enter your search:', '')
 search_type = st.radio('Search by:', ['Song Title', 'Artist', 'Album'], horizontal=True)
 
-# New format filter logic
-format_options = ['All', 'Albums', 'Singles', 'Videos']
+# Format definitions
 format_keywords = {
     'Albums': ['album', 'compilation', 'comp'],
     'Singles': ['single', 'ep'],
     'Videos': ['video', 'dvd']
 }
-format_filter = st.radio('Format Filter:', format_options, index=0)
+format_labels = ['All', 'Albums', 'Singles', 'Videos']
 
 if search_query:
     full_results = search(df, search_query, search_type, format_filter='All')
-    
-    # Count breakdown
-    counts = {
-        'Albums': 0,
-        'Singles': 0,
-        'Videos': 0
-    }
 
+    # Count breakdown
+    counts = {'All': len(full_results), 'Albums': 0, 'Singles': 0, 'Videos': 0}
     for fmt_name, keywords in format_keywords.items():
         pattern = '|'.join(keywords)
-        matching = full_results['Format'].str.lower().str.contains(pattern, na=False)
-        counts[fmt_name] = matching.sum()
+        match = full_results['Format'].str.lower().str.contains(pattern, na=False)
+        counts[fmt_name] = match.sum()
 
-    total_unique = full_results['release_id'].nunique()
-    st.markdown(f"### 🔎 {total_unique} total result(s) found")
-    st.markdown(
-        f"- 🎵 **Albums**: {counts['Albums']} &nbsp;&nbsp;&nbsp; "
-        f"- 💿 **Singles**: {counts['Singles']} &nbsp;&nbsp;&nbsp; "
-        f"- 📼 **Videos**: {counts['Videos']}"
-    )
+    # Show radio buttons with counts
+    format_display = [f"{label} ({counts[label]})" for label in format_labels]
+    selected_label = st.radio('Format Filter:', format_display, horizontal=True)
+    format_filter = selected_label.split(' ')[0]
 
-    # Apply selected format filter
+    # Filter results
     if format_filter == 'All':
         results = full_results
     else:
-        keywords = format_keywords.get(format_filter, [])
-        if keywords:
-            pattern = '|'.join(keywords)
-            results = full_results[full_results['Format'].str.lower().str.contains(pattern, na=False)]
-        else:
-            results = full_results
+        pattern = '|'.join(format_keywords[format_filter])
+        results = full_results[full_results['Format'].str.lower().str.contains(pattern, na=False)]
 
-    unique_results = results.drop_duplicates(subset='release_id')
-    st.write(f"### Showing {len(unique_results)} album(s)" if format_filter == 'Albums' else f"### Showing {len(results)} result(s)")
+    unique_releases = results['release_id'].nunique()
+    st.markdown(f"### 🔎 Showing {unique_releases} album(s)" if format_filter == 'Albums' else f"### 🔎 Showing {len(results)} result(s)")
 
     if results.empty:
         st.info("No results found.")
@@ -267,8 +254,7 @@ if search_query:
                 with cols[1]:
                     st.markdown(f"### {album_title}")
                     st.markdown(f"**Artist:** {display_artist}")
-
-                    if format_filter != 'Albums':
+                    with st.expander("Click to view tracklist"):
                         tracklist = group[[
                             'Track Title', 'Artist', 'CD', 'Track Number'
                         ]].rename(columns={
@@ -282,21 +268,6 @@ if search_query:
                             use_container_width=True,
                             hide_index=True,
                         )
-                    else:
-                        with st.expander("Click to view tracklist"):
-                            tracklist = group[[
-                                'Track Title', 'Artist', 'CD', 'Track Number'
-                            ]].rename(columns={
-                                'Track Title': 'Song',
-                                'CD': 'Disc',
-                                'Track Number': 'Track',
-                            }).reset_index(drop=True)
-
-                            st.dataframe(
-                                tracklist,
-                                use_container_width=True,
-                                hide_index=True,
-                            )
 
         if new_covers:
             try:
