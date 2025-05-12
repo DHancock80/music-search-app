@@ -230,8 +230,12 @@ if search_query:
                                     st.rerun()
 
                     with st.expander("Click to view tracklist", expanded=False):
-                        tracklist = group[['Track Title', 'Artist', 'CD', 'Track Number']].copy()
-                        tracklist['Artist'] = group['Artist'].rename(columns={
+                        tracklist = group[['Track Title', 'Artist', 'CD', 'Track Number']].copy().rename(columns={
+    'Track Title': 'Song',
+    'CD': 'Disc',
+    'Track Number': 'Track'
+})
+
                             'Track Title': 'Song',
                             'CD': 'Disc',
                             'Track Number': 'Track'
