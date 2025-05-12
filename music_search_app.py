@@ -1,5 +1,4 @@
-# Full code with all UI elements restored (cover art, tracklist, update cover art, GitHub sync, etc.)
-# Rapidfuzz integrated and all previous functionality preserved
+# Full code with all UI elements restored and format filter substring-matching fix
 
 import streamlit as st
 import pandas as pd
@@ -17,11 +16,6 @@ DISCOGS_API_TOKEN = st.secrets["DISCOGS_API_TOKEN"]
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 GITHUB_REPO = 'DHancock80/music-search-app'
 GITHUB_BRANCH = 'main'
-
-# Format keyword sets
-ALBUM_KEYWORDS = ['album', 'comp', 'compilation', '2xcd', 'cd', 'lp']
-SINGLE_KEYWORDS = ['single', 'cd single', '7"', '12"']
-VIDEO_KEYWORDS = ['dvd', 'vhs', 'blu-ray', 'video']
 
 @st.cache_data
 def load_data():
@@ -58,9 +52,15 @@ def clean_artist_name(artist):
 def fuzzy_filter(series, query, threshold=60):
     return series.apply(lambda x: fuzz.partial_ratio(str(x).lower(), query.lower()) >= threshold)
 
-def match_format(fmt, keywords):
-    fmt = str(fmt).lower()
-    return any(keyword in fmt for keyword in keywords)
+def map_format(value):
+    value = str(value).lower()
+    if any(f in value for f in ['album', 'comp']):
+        return 'Album'
+    if 'single' in value:
+        return 'Single'
+    if any(f in value for f in ['video', 'dvd']):
+        return 'Video'
+    return 'Other'
 
 def search(df, query, search_type, format_filter):
     if df.empty:
@@ -76,14 +76,9 @@ def search(df, query, search_type, format_filter):
     elif search_type == 'Album':
         results = results[fuzzy_filter(results['Title'], query)]
 
+    results['Format Category'] = results['Format'].apply(map_format)
     if format_filter != 'All':
-        if 'Format' in results.columns:
-            if format_filter == 'Album':
-                results = results[results['Format'].apply(lambda x: match_format(x, ALBUM_KEYWORDS))]
-            elif format_filter == 'Single':
-                results = results[results['Format'].apply(lambda x: match_format(x, SINGLE_KEYWORDS))]
-            elif format_filter == 'Video':
-                results = results[results['Format'].apply(lambda x: match_format(x, VIDEO_KEYWORDS))]
+        results = results[results['Format Category'] == format_filter]
 
     return results
 
