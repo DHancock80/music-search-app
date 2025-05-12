@@ -189,9 +189,5 @@ if search_query:
 
             with st.expander("Click to view tracklist", expanded=False):
                 tracklist = group[['Track Title', 'Artist', 'CD', 'Track Number']].copy()
-                tracklist = tracklist.rename(columns={
-                    'Track Title': 'Song',
-                    'CD': 'Disc',
-                    'Track Number': 'Track'
-                })
+                tracklist.columns = ['Song', 'Artist', 'Disc', 'Track']
                 st.dataframe(tracklist, use_container_width=True, hide_index=True)
