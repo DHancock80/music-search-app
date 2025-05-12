@@ -1,10 +1,12 @@
 import streamlit as st
 import pandas as pd
 import re
+import requests
 
 # Constants
 CSV_FILE = 'expanded_discogs_tracklist.csv'
 COVER_OVERRIDES_FILE = 'cover_overrides.csv'
+DISCOGS_API_URL = 'https://api.discogs.com/releases/'
 
 @st.cache_data
 def load_data():
@@ -18,10 +20,9 @@ def load_data():
         # Load cover overrides if available
         try:
             overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
-            if 'release_id' in overrides.columns and 'custom_cover_url' in overrides.columns:
+            if 'release_id' in overrides.columns and 'cover_url' in overrides.columns:
                 df = df.merge(overrides, on='release_id', how='left', suffixes=('', '_override'))
-                # Use custom_cover_url if available
-                df['cover_art_final'] = df['custom_cover_url'].combine_first(df['cover_art'])
+                df['cover_art_final'] = df['cover_url'].combine_first(df['cover_art'])
             else:
                 df['cover_art_final'] = df['cover_art']
         except FileNotFoundError:
@@ -30,7 +31,7 @@ def load_data():
             
     except Exception as e:
         st.error(f"Error loading the CSV file: {e}")
-        df = pd.DataFrame()  # Return empty DataFrame on error
+        df = pd.DataFrame()
     return df
 
 def clean_artist_name(artist):
@@ -74,6 +75,18 @@ def search(df, query, search_type, format_filter):
 
     return results
 
+def fetch_discogs_cover(release_id):
+    try:
+        response = requests.get(f"{DISCOGS_API_URL}{release_id}")
+        if response.status_code == 200:
+            data = response.json()
+            if 'images' in data and len(data['images']) > 0:
+                # Usually first image is the cover
+                return data['images'][0]['uri']
+    except Exception as e:
+        st.warning(f"Failed to fetch from Discogs: {e}")
+    return None
+
 # Streamlit app
 st.title('🎵 Music Search App')
 
@@ -115,8 +128,15 @@ if search_query:
             st.write("#### Cover Art")
             for _, row in results.iterrows():
                 cover = row.get('cover_art_final') or row.get('cover_art')
-                if pd.notna(cover):
+                
+                # If no cover yet, fetch from Discogs live
+                if pd.isna(cover) and pd.notna(row.get('release_id')):
+                    cover = fetch_discogs_cover(row['release_id'])
+                
+                if cover:
                     st.image(cover, caption=f"{row['Track Title']} - {row['Artist']}", width=150)
+                else:
+                    st.text(f"No cover art available for: {row['Track Title']} - {row['Artist']}")
 
 # Optional: File uploader for cover art corrections
 st.write("---")
@@ -127,7 +147,7 @@ release_id = st.text_input("Enter the release ID to update")
 
 if cover_url and release_id:
     try:
-        new_entry = pd.DataFrame([{'release_id': release_id, 'custom_cover_url': cover_url}])
+        new_entry = pd.DataFrame([{'release_id': release_id, 'cover_url': cover_url}])
         try:
             existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
             updated = pd.concat([existing, new_entry], ignore_index=True)
