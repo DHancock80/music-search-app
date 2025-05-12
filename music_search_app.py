@@ -76,19 +76,6 @@ def fetch_discogs_cover(release_id):
 # Streamlit app
 st.title('🎵 Music Search App')
 
-# Add CSS to style the card container
-st.markdown("""
-    <style>
-    .album-card {
-        border: 2px solid #ddd;
-        border-radius: 10px;
-        padding: 15px;
-        margin-bottom: 25px;
-        background-color: #f9f9f9;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
 df = load_data()
 
 if df.empty:
@@ -124,10 +111,7 @@ if search_query:
                 cover_cache[release_id] = cover
 
             with st.container():
-                # Whole card styled here
-                st.markdown('<div class="album-card">', unsafe_allow_html=True)
-
-                # Header section
+                # Album header
                 cols = st.columns([1, 5])
                 with cols[0]:
                     if cover:
@@ -143,19 +127,8 @@ if search_query:
                     st.markdown(f"### {album_title}")
                     st.markdown(f"**Artist:** {artist}")
 
-                # Tracklist table (no index column)
-                tracklist = group[[
-                    'Track Title', 'Artist', 'CD', 'Track Number', 'Format'
-                ]].rename(columns={
-                    'Track Title': 'Song',
-                    'CD': 'Disc',
-                    'Track Number': 'Track',
-                }).reset_index(drop=True)
-
-                st.dataframe(tracklist, hide_index=True, use_container_width=True)
-
-                # Report button spans full width under the card
-                with st.expander("Report or update cover art for this album"):
+                # Update Cover Art expander (now BELOW cover & info, ABOVE table)
+                with st.expander("Update Cover Art"):
                     new_url = st.text_input("Paste a new cover art URL:", key=f"url_{release_id}")
                     if st.button("Submit new cover art", key=f"submit_{release_id}"):
                         if new_url:
@@ -170,4 +143,13 @@ if search_query:
                         else:
                             st.error("Please enter a valid URL.")
 
-                st.markdown('</div>', unsafe_allow_html=True)
+                # Tracklist table (no index column)
+                tracklist = group[[
+                    'Track Title', 'Artist', 'CD', 'Track Number', 'Format'
+                ]].rename(columns={
+                    'Track Title': 'Song',
+                    'CD': 'Disc',
+                    'Track Number': 'Track',
+                }).reset_index(drop=True)
+
+                st.dataframe(tracklist, hide_index=True, use_container_width=True)
