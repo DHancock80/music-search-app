@@ -65,8 +65,13 @@ def search(df, query, search_type, format_filter):
 
     if format_filter != 'All':
         if 'Format' in results.columns:
-            # 🔧 Updated filter: now matches if 'album' is anywhere in the Format string
-            results = results[results['Format'].str.lower().str.contains(format_filter.lower(), na=False)]
+            if format_filter.lower() == 'album':
+                # ✅ Match album-like formats: album, compilation, comp
+                album_keywords = ['album', 'compilation', 'comp']
+                pattern = '|'.join(album_keywords)
+                results = results[results['Format'].str.lower().str.contains(pattern, na=False)]
+            else:
+                results = results[results['Format'].str.lower().str.contains(format_filter.lower(), na=False)]
 
     return results
 
@@ -125,10 +130,10 @@ format_filter = st.selectbox('Format filter:', ['All', 'Album', 'Single'])
 if search_query:
     results = search(df, search_query, search_type, format_filter)
 
-    unique_results = results.drop_duplicates()
-    st.write(f"### Found {len(unique_results)} result(s)")
+    unique_results = results.drop_duplicates(subset='release_id')
+    st.write(f"### Found {len(unique_results)} album(s)" if format_filter == 'Album' else f"### Found {len(results)} result(s)")
 
-    if unique_results.empty:
+    if results.empty:
         st.info("No results found.")
     else:
         cover_cache = {}
@@ -168,6 +173,37 @@ if search_query:
                 with cols[1]:
                     st.markdown(f"### {album_title}")
                     st.markdown(f"**Artist:** {artist}")
+
+                    # Only show tracklist if filter is NOT Album
+                    if format_filter != 'Album':
+                        tracklist = group[[
+                            'Track Title', 'Artist', 'CD', 'Track Number', 'Format'
+                        ]].rename(columns={
+                            'Track Title': 'Song',
+                            'CD': 'Disc',
+                            'Track Number': 'Track',
+                        }).reset_index(drop=True)
+
+                        st.dataframe(
+                            tracklist,
+                            use_container_width=True,
+                            hide_index=True,
+                        )
+                    else:
+                        with st.expander("Click to view tracklist"):
+                            tracklist = group[[
+                                'Track Title', 'Artist', 'CD', 'Track Number', 'Format'
+                            ]].rename(columns={
+                                'Track Title': 'Song',
+                                'CD': 'Disc',
+                                'Track Number': 'Track',
+                            }).reset_index(drop=True)
+
+                            st.dataframe(
+                                tracklist,
+                                use_container_width=True,
+                                hide_index=True,
+                            )
 
                 with st.expander("Update Cover Art"):
                     new_url = st.text_input("Paste a new cover art URL:", key=f"url_{release_id}")
@@ -230,20 +266,6 @@ if search_query:
                                 st.success("Cover override removed locally.")
                                 st.cache_data.clear()
                                 st.rerun()
-
-                tracklist = group[[
-                    'Track Title', 'Artist', 'CD', 'Track Number', 'Format'
-                ]].rename(columns={
-                    'Track Title': 'Song',
-                    'CD': 'Disc',
-                    'Track Number': 'Track',
-                }).reset_index(drop=True)
-
-                st.dataframe(
-                    tracklist,
-                    use_container_width=True,
-                    hide_index=True,
-                )
 
         if new_covers:
             try:
