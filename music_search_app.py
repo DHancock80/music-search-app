@@ -1,105 +1,95 @@
 import streamlit as st
 import pandas as pd
-import re
-from rapidfuzz import fuzz
+import difflib
 import os
 
-# Load and clean data
-@st.cache_data
-def load_data():
-    df = pd.read_csv("expanded_discogs_tracklists.csv")
-    df.columns = df.columns.str.strip()
-    df = df.dropna(subset=["Artist", "Track Title"])
-    return df
+# --- Load your main music collection CSV ---
+df = pd.read_csv("expanded_discogs_tracklists.csv", dtype=str).fillna("")
 
-# Clean artist string
-def clean_artist_name(name):
-    name = name.lower()
-    name = re.sub(r'[\*\(\)#\[\]]', '', name)  # remove *, (#), [], etc.
-    name = re.sub(r'\s+', ' ', name)  # collapse spaces
-    return name.strip()
+# --- Normalize data for fuzzy search ---
+def normalize(text):
+    if not isinstance(text, str):
+        return ""
+    text = text.lower()
+    for sep in ['feat.', 'ft.', 'featuring', '&', ',', ' and ', '(', ')', '*', '[', ']', '#']:
+        text = text.replace(sep, ' ')
+    return ' '.join(text.split())
 
-# Extract all artists from collaborations
-def extract_individual_artists(artist_str):
-    delimiters = [',', '&', ' and ', ' feat. ', ' featuring ', ' ft. ']
-    pattern = '|'.join(map(re.escape, delimiters))
-    split_artists = re.split(pattern, artist_str, flags=re.IGNORECASE)
-    return [clean_artist_name(a) for a in split_artists if a.strip()]
+df['norm_artist'] = df['Artist'].apply(normalize)
+df['norm_track'] = df['Track Title'].apply(normalize)
 
-# Fuzzy match
-def fuzzy_artist_match(df, query):
-    query_clean = clean_artist_name(query)
-    results = []
-    for idx, row in df.iterrows():
-        artists = extract_individual_artists(row['Artist'])
-        for artist in artists:
-            if fuzz.partial_ratio(query_clean, artist) >= 85:
-                results.append(row)
-                break
-    return pd.DataFrame(results)
+# --- Load or create override cover art ---
+cover_override_path = "cover_overrides.csv"
+if os.path.exists(cover_override_path):
+    cover_overrides = pd.read_csv(cover_override_path, dtype=str).fillna("")
+else:
+    cover_overrides = pd.DataFrame(columns=["release_id", "custom_cover_url"])
 
-# Filter video tracks
-def filter_video(df, include_video):
-    if include_video == "Audio Only":
-        return df[df['Format'].str.contains("video", case=False) == False]
-    elif include_video == "Video Only":
-        return df[df['Format'].str.contains("video", case=False)]
-    return df
+# --- Save override cover art ---
+def save_override(release_id, url):
+    global cover_overrides
+    cover_overrides = cover_overrides[cover_overrides["release_id"] != release_id]
+    cover_overrides = pd.concat([cover_overrides, pd.DataFrame([{"release_id": release_id, "custom_cover_url": url}])])
+    cover_overrides.to_csv(cover_override_path, index=False)
 
-# Show cover art from Discogs
-@st.cache_data
-def get_cover_url(release_id):
-    return f"https://img.discogs.com/placeholder/{release_id}.jpg"
+# --- Fuzzy search helper ---
+def fuzzy_filter(query, choices):
+    query = normalize(query)
+    results = difflib.get_close_matches(query, choices, n=100, cutoff=0.4)
+    return set(results)
 
-# Load session search history
-def update_search_history(query):
-    if 'history' not in st.session_state:
-        st.session_state.history = []
-    if query and query not in st.session_state.history:
-        st.session_state.history.insert(0, query)
-        st.session_state.history = st.session_state.history[:10]  # limit to 10
+# --- Streamlit UI ---
+st.title("🎵 Music Collection Search")
 
-# Main app
-st.set_page_config(page_title="Music Search App", layout="wide")
-st.title("🎵 DH Music Collection Search")
+query = st.text_input("Search for a song or artist:")
 
-# Load CSV
-try:
-    df = load_data()
-except FileNotFoundError:
-    st.error("CSV file not found. Please upload expanded_discogs_tracklists.csv.")
-    st.stop()
-
-# Sidebar options
-query = st.text_input("Search Artist (fuzzy matching supported)")
-format_filter = st.selectbox("Show:", ["All", "Audio Only", "Video Only"])
+search_type = st.radio("Search by:", ["Song", "Artist"], horizontal=True)
+format_filter = st.multiselect("Filter by Format:", ["Album", "Single", "Video"], default=["Album", "Single", "Video"])
 
 if query:
-    update_search_history(query)
-    filtered_df = fuzzy_artist_match(df, query)
-    filtered_df = filter_video(filtered_df, format_filter)
+    norm_query = normalize(query)
 
-    if not filtered_df.empty:
-        st.markdown(f"### Results for **{query}** ({len(filtered_df)} matches)")
-        for _, row in filtered_df.iterrows():
-            with st.container():
-                col1, col2 = st.columns([1, 4])
-                with col1:
-                    release_id = row.get("release_id", "")
-                    if pd.notna(release_id):
-                        st.image(get_cover_url(release_id), width=100)
-                with col2:
-                    st.markdown(f"**{row['Track Title']}**  ")
-                    st.markdown(f"Artist: *{row['Artist']}*  ")
-                    st.markdown(f"Album: {row['Title']} ({row.get('Format', 'Unknown')})")
-                    st.markdown("---")
+    if search_type == "Song":
+        matches = fuzzy_filter(norm_query, df['norm_track'].unique())
+        result = df[df['norm_track'].isin(matches)]
+    else:
+        matches = fuzzy_filter(norm_query, df['norm_artist'].unique())
+        result = df[df['norm_artist'].isin(matches)]
+
+    if format_filter:
+        result = result[result["Format"].str.contains('|'.join(format_filter), case=False, na=False)]
+
+    if not result.empty:
+        for _, row in result.sort_values("Track Title").iterrows():
+            st.markdown(f"### 🎶 {row['Track Title']}")
+            st.markdown(f"- **Artist:** {row['Artist']}")
+            st.markdown(f"- **Album:** {row['Title']}")
+            st.markdown(f"- **Format:** {row['Format']}")
+            st.markdown(f"- **Disc:** {row['CD']}  |  **Track #:** {row['Track Number']}")
+
+            # --- Show cover image ---
+            release_id = row["release_id"]
+            override = cover_overrides[cover_overrides["release_id"] == release_id]
+            if not override.empty:
+                st.image(override["custom_cover_url"].values[0], width=200)
+            else:
+                st.image(f"https://img.discogs.com/{release_id}.jpg", width=200)
+
+            # --- Cover image update form ---
+            with st.expander("🖼️ Update Cover Art"):
+                with st.form(key=f"cover_form_{release_id}"):
+                    new_url = st.text_input("Paste new image URL:")
+                    new_file = st.file_uploader("Or upload an image file:", type=["jpg", "png"])
+                    submit = st.form_submit_button("Update Cover")
+
+                    if submit:
+                        if new_url:
+                            save_override(release_id, new_url)
+                            st.success("✅ Cover art updated via URL!")
+                        elif new_file:
+                            # Save uploaded file (simulate hosting)
+                            save_path = f"https://your.image.host/{release_id}.jpg"
+                            save_override(release_id, save_path)
+                            st.success("✅ Cover art will be updated (simulation)")
     else:
         st.warning("No results found.")
-
-# Show search history
-if 'history' in st.session_state and st.session_state.history:
-    st.sidebar.markdown("### 🔎 Search History")
-    for past_query in st.session_state.history:
-        if st.sidebar.button(past_query):
-            query = past_query
-            st.experimental_rerun()
