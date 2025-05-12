@@ -1,95 +1,129 @@
 import streamlit as st
 import pandas as pd
-import difflib
-import os
+import re
 
-# --- Load your main music collection CSV ---
-df = pd.read_csv("expanded_discogs_tracklists.csv", dtype=str).fillna("")
+# Constants
+CSV_FILE = 'expanded_discogs_tracklist.csv'
+COVER_OVERRIDES_FILE = 'cover_overrides.csv'
 
-# --- Normalize data for fuzzy search ---
-def normalize(text):
-    if not isinstance(text, str):
-        return ""
-    text = text.lower()
-    for sep in ['feat.', 'ft.', 'featuring', '&', ',', ' and ', '(', ')', '*', '[', ']', '#']:
-        text = text.replace(sep, ' ')
-    return ' '.join(text.split())
-
-df['norm_artist'] = df['Artist'].apply(normalize)
-df['norm_track'] = df['Track Title'].apply(normalize)
-
-# --- Load or create override cover art ---
-cover_override_path = "cover_overrides.csv"
-if os.path.exists(cover_override_path):
-    cover_overrides = pd.read_csv(cover_override_path, dtype=str).fillna("")
-else:
-    cover_overrides = pd.DataFrame(columns=["release_id", "custom_cover_url"])
-
-# --- Save override cover art ---
-def save_override(release_id, url):
-    global cover_overrides
-    cover_overrides = cover_overrides[cover_overrides["release_id"] != release_id]
-    cover_overrides = pd.concat([cover_overrides, pd.DataFrame([{"release_id": release_id, "custom_cover_url": url}])])
-    cover_overrides.to_csv(cover_override_path, index=False)
-
-# --- Fuzzy search helper ---
-def fuzzy_filter(query, choices):
-    query = normalize(query)
-    results = difflib.get_close_matches(query, choices, n=100, cutoff=0.4)
-    return set(results)
-
-# --- Streamlit UI ---
-st.title("🎵 Music Collection Search")
-
-query = st.text_input("Search for a song or artist:")
-
-search_type = st.radio("Search by:", ["Song", "Artist"], horizontal=True)
-format_filter = st.multiselect("Filter by Format:", ["Album", "Single", "Video"], default=["Album", "Single", "Video"])
-
-if query:
-    norm_query = normalize(query)
-
-    if search_type == "Song":
-        matches = fuzzy_filter(norm_query, df['norm_track'].unique())
-        result = df[df['norm_track'].isin(matches)]
-    else:
-        matches = fuzzy_filter(norm_query, df['norm_artist'].unique())
-        result = df[df['norm_artist'].isin(matches)]
-
-    if format_filter:
-        result = result[result["Format"].str.contains('|'.join(format_filter), case=False, na=False)]
-
-    if not result.empty:
-        for _, row in result.sort_values("Track Title").iterrows():
-            st.markdown(f"### 🎶 {row['Track Title']}")
-            st.markdown(f"- **Artist:** {row['Artist']}")
-            st.markdown(f"- **Album:** {row['Title']}")
-            st.markdown(f"- **Format:** {row['Format']}")
-            st.markdown(f"- **Disc:** {row['CD']}  |  **Track #:** {row['Track Number']}")
-
-            # --- Show cover image ---
-            release_id = row["release_id"]
-            override = cover_overrides[cover_overrides["release_id"] == release_id]
-            if not override.empty:
-                st.image(override["custom_cover_url"].values[0], width=200)
+@st.cache_data
+def load_data():
+    try:
+        df = pd.read_csv(CSV_FILE, encoding='latin1')
+        
+        # Check if cover art is in the main CSV
+        if 'cover_art' not in df.columns:
+            df['cover_art'] = None  # Add empty column if missing
+        
+        # Load cover overrides if available
+        try:
+            overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
+            if 'release_id' in overrides.columns and 'cover_url' in overrides.columns:
+                df = df.merge(overrides, on='release_id', how='left', suffixes=('', '_override'))
+                # Use override if available
+                df['cover_art_final'] = df['cover_url'].combine_first(df['cover_art'])
             else:
-                st.image(f"https://img.discogs.com/{release_id}.jpg", width=200)
+                df['cover_art_final'] = df['cover_art']
+        except FileNotFoundError:
+            st.warning("Cover overrides file not found. Proceeding without overrides.")
+            df['cover_art_final'] = df['cover_art']
+            
+    except Exception as e:
+        st.error(f"Error loading the CSV file: {e}")
+        df = pd.DataFrame()  # Return empty DataFrame on error
+    return df
 
-            # --- Cover image update form ---
-            with st.expander("🖼️ Update Cover Art"):
-                with st.form(key=f"cover_form_{release_id}"):
-                    new_url = st.text_input("Paste new image URL:")
-                    new_file = st.file_uploader("Or upload an image file:", type=["jpg", "png"])
-                    submit = st.form_submit_button("Update Cover")
+def clean_artist_name(artist):
+    if pd.isna(artist):
+        return ''
+    # Lowercase, remove special characters, handle feat./ft./&/, variations
+    artist = artist.lower()
+    artist = re.sub(r'[\*\(\)\[\]#]', '', artist)
+    artist = re.sub(r'\s*(feat\.|ft\.|featuring)\s*', ' ', artist)
+    artist = artist.replace('&', ' ').replace(',', ' ')
+    artist = re.sub(r'\s+', ' ', artist).strip()
+    return artist
 
-                    if submit:
-                        if new_url:
-                            save_override(release_id, new_url)
-                            st.success("✅ Cover art updated via URL!")
-                        elif new_file:
-                            # Save uploaded file (simulate hosting)
-                            save_path = f"https://your.image.host/{release_id}.jpg"
-                            save_override(release_id, save_path)
-                            st.success("✅ Cover art will be updated (simulation)")
+def search(df, query, search_type, format_filter):
+    if df.empty:
+        return df  # Return empty if no data loaded
+    
+    query = query.lower().strip()
+    results = df.copy()
+
+    if search_type == 'Song Title':
+        if 'Track Title' not in results.columns:
+            st.error("The CSV does not contain a 'Track Title' column.")
+            return pd.DataFrame()
+        results = results[results['Track Title'].str.lower().str.contains(query, na=False)]
+    elif search_type == 'Artist':
+        if 'Artist' not in results.columns:
+            st.error("The CSV does not contain an 'Artist' column.")
+            return pd.DataFrame()
+        results['artist_clean'] = results['Artist'].apply(clean_artist_name)
+        results = results[results['artist_clean'].str.contains(query, na=False)]
+    elif search_type == 'Album':
+        if 'Title' not in results.columns:
+            st.error("The CSV does not contain a 'Title' column.")
+            return pd.DataFrame()
+        results = results[results['Title'].str.lower().str.contains(query, na=False)]
+
+    if format_filter != 'All':
+        if 'Format' in results.columns:
+            results = results[results['Format'].str.lower() == format_filter.lower()]
+        else:
+            st.warning("Format column missing; ignoring format filter.")
+
+    return results
+
+# Streamlit app
+st.title('🎵 Music Search App')
+
+df = load_data()
+
+if df.empty:
+    st.stop()
+
+search_query = st.text_input('Enter your search:', '')
+search_type = st.radio('Search by:', ['Song Title', 'Artist', 'Album'])
+format_filter = st.selectbox('Format filter:', ['All', 'Album', 'Single'])
+
+if search_query:
+    results = search(df, search_query, search_type, format_filter)
+    st.write(f"### Found {len(results)} result(s)")
+    
+    if results.empty:
+        st.info("No results found.")
     else:
-        st.warning("No results found.")
+        for _, row in results.iterrows():
+            st.subheader(f"{row['Track Title']} - {row['Artist']}")
+            st.write(f"**Album:** {row['Title']}")
+            st.write(f"**Disc:** {row.get('CD', 'N/A')} | **Track:** {row.get('Track Number', 'N/A')}")
+            st.write(f"**Format:** {row.get('Format', 'N/A')}")
+            
+            cover = row.get('cover_art_final') or row.get('cover_art')
+            if pd.notna(cover):
+                st.image(cover, caption='Cover Art', use_column_width=True)
+            else:
+                st.text('No cover art available.')
+
+# Optional: File uploader for cover art corrections
+st.write("---")
+st.write("### Submit cover art correction")
+
+cover_url = st.text_input("Paste an image URL")
+release_id = st.text_input("Enter the release ID to update")
+
+if cover_url and release_id:
+    try:
+        # Append the new override to the CSV
+        new_entry = pd.DataFrame([{'release_id': release_id, 'cover_url': cover_url}])
+        try:
+            existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
+            updated = pd.concat([existing, new_entry], ignore_index=True)
+        except FileNotFoundError:
+            updated = new_entry
+        updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
+        st.success("Cover art override saved! Please reload the app to see changes.")
+    except Exception as e:
+        st.error(f"Failed to save override: {e}")
