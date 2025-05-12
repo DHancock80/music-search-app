@@ -181,6 +181,7 @@ if search_query:
 
                     if st.button("Edit Cover Art", key=f"edit_{release_id}"):
     st.session_state.expanded_cover_id = release_id if st.session_state.expanded_cover_id != release_id else None
+
                         st.session_state.expanded_cover_id = release_id if st.session_state.expanded_cover_id != release_id else None
 
                 with cols[1]:
