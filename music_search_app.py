@@ -119,12 +119,12 @@ format_keywords = {
     'Singles': ['single', 'ep'],
     'Videos': ['video', 'dvd']
 }
-format_labels = ['All', 'Tracks', 'Albums', 'Singles', 'Videos']
+format_labels = ['All', 'Albums', 'Singles', 'Videos']
 
 if search_query:
     full_results = search(df, search_query, search_type)
 
-    counts = {'All': len(full_results), 'Tracks': len(full_results)}
+    counts = {'All': len(full_results)}
     for fmt_name, keywords in format_keywords.items():
         pattern = '|'.join(keywords)
         mask = full_results['Format'].str.lower().str.contains(pattern, na=False)
@@ -134,7 +134,7 @@ if search_query:
     selected_label = st.radio('Format Filter:', format_display, horizontal=True)
     format_filter = selected_label.split(' ')[0]
 
-    if format_filter == 'All' or format_filter == 'Tracks':
+    if format_filter == 'All':
         results = full_results
     else:
         pattern = '|'.join(format_keywords[format_filter])
@@ -179,14 +179,8 @@ if search_query:
                     else:
                         st.text("No cover art")
 
-                    link_key = f"link_{release_id}"
-                    if st.markdown(f"<a href='#' style='font-size: 0.9em;' onclick=\"document.querySelector('[name={link_key}]').click();return false;\">Edit Cover Art</a>", unsafe_allow_html=True):
-                        pass
-                    if st.button("_", key=link_key):
-                        if st.session_state.expanded_cover_id == release_id:
-                            st.session_state.expanded_cover_id = None
-                        else:
-                            st.session_state.expanded_cover_id = release_id
+                    if st.button("Edit Cover Art", key=f"edit_{release_id}"):
+                        st.session_state.expanded_cover_id = release_id if st.session_state.expanded_cover_id != release_id else None
 
                 with cols[1]:
                     st.markdown(f"### {album_title}")
