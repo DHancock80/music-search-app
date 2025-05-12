@@ -18,6 +18,11 @@ GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 GITHUB_REPO = 'DHancock80/music-search-app'
 GITHUB_BRANCH = 'main'
 
+# Format keyword sets
+ALBUM_KEYWORDS = ['album', 'comp', 'compilation', '2xcd', 'cd', 'lp']
+SINGLE_KEYWORDS = ['single', 'cd single', '7"', '12"']
+VIDEO_KEYWORDS = ['dvd', 'vhs', 'blu-ray', 'video']
+
 @st.cache_data
 def load_data():
     try:
@@ -40,13 +45,6 @@ def load_data():
         df = pd.DataFrame()
     return df
 
-def clean_text(text):
-    if pd.isna(text):
-        return ''
-    text = str(text).lower()
-    text = re.sub(r"[\W_]+", "", text)  # Remove all non-alphanumeric characters
-    return text
-
 def clean_artist_name(artist):
     if pd.isna(artist):
         return ''
@@ -58,13 +56,16 @@ def clean_artist_name(artist):
     return artist
 
 def fuzzy_filter(series, query, threshold=60):
-    query_clean = clean_text(query)
-    return series.apply(lambda x: fuzz.partial_ratio(clean_text(x), query_clean) >= threshold)
+    return series.apply(lambda x: fuzz.partial_ratio(str(x).lower(), query.lower()) >= threshold)
+
+def match_format(fmt, keywords):
+    fmt = str(fmt).lower()
+    return any(keyword in fmt for keyword in keywords)
 
 def search(df, query, search_type, format_filter):
     if df.empty:
         return df
-    query = query.strip()
+    query = query.lower().strip()
     results = df.copy()
 
     if search_type == 'Song Title':
@@ -76,13 +77,13 @@ def search(df, query, search_type, format_filter):
         results = results[fuzzy_filter(results['Title'], query)]
 
     if format_filter != 'All':
-        format_keywords = {
-            'Album': ['album', 'comp', '2xcd', 'cd'],
-            'Single': ['single'],
-            'Video': ['video']
-        }
-        keywords = format_keywords.get(format_filter, [])
-        results = results[results['Format'].fillna('').str.lower().apply(lambda x: any(k in x for k in keywords))]
+        if 'Format' in results.columns:
+            if format_filter == 'Album':
+                results = results[results['Format'].apply(lambda x: match_format(x, ALBUM_KEYWORDS))]
+            elif format_filter == 'Single':
+                results = results[results['Format'].apply(lambda x: match_format(x, SINGLE_KEYWORDS))]
+            elif format_filter == 'Video':
+                results = results[results['Format'].apply(lambda x: match_format(x, VIDEO_KEYWORDS))]
 
     return results
 
