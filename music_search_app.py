@@ -81,7 +81,6 @@ def fetch_discogs_cover(release_id):
         if response.status_code == 200:
             data = response.json()
             if 'images' in data and len(data['images']) > 0:
-                # Usually first image is the cover
                 return data['images'][0]['uri']
     except Exception as e:
         st.warning(f"Failed to fetch from Discogs: {e}")
@@ -106,37 +105,37 @@ if search_query:
     if results.empty:
         st.info("No results found.")
     else:
-        compact_results = results[[
-            'Track Title', 'Artist', 'Title', 'CD', 'Track Number', 'Format'
-        ]].rename(columns={
-            'Track Title': 'Song',
-            'Title': 'Album',
-            'CD': 'Disc',
-            'Track Number': 'Track',
-            'Format': 'Format'
-        }).reset_index(drop=True)
-        
-        st.write("#### Results (sortable & filterable table)")
-        st.data_editor(
-            compact_results,
-            use_container_width=True,
-            hide_index=True,
-            disabled=True
-        )
-        
-        if st.checkbox("Show cover art thumbnails?"):
-            st.write("#### Cover Art")
-            for _, row in results.iterrows():
-                cover = row.get('cover_art_final') or row.get('cover_art')
-                
-                # If no cover yet, fetch from Discogs live
-                if pd.isna(cover) and pd.notna(row.get('release_id')):
-                    cover = fetch_discogs_cover(row['release_id'])
-                
+        st.write("#### Results")
+
+        for idx, row in results.iterrows():
+            # Get the cover image
+            cover = row.get('cover_art_final') or row.get('cover_art')
+            if pd.isna(cover) and pd.notna(row.get('release_id')):
+                cover = fetch_discogs_cover(row['release_id'])
+            
+            # Set up the row layout
+            cols = st.columns([1, 4, 2])
+            
+            # Thumbnail
+            with cols[0]:
                 if cover:
-                    st.image(cover, caption=f"{row['Track Title']} - {row['Artist']}", width=150)
+                    if st.button(f"View Cover {idx}", key=f"btn_{idx}"):
+                        with st.modal(f"{row['Track Title']} - {row['Artist']}"):
+                            st.image(cover, caption=f"{row['Track Title']} - {row['Artist']}", use_column_width=True)
+                    st.image(cover, width=80)
                 else:
-                    st.text(f"No cover art available for: {row['Track Title']} - {row['Artist']}")
+                    st.text("No cover")
+            
+            # Song info
+            with cols[1]:
+                st.markdown(f"**{row['Track Title']}** by **{row['Artist']}**")
+                st.markdown(f"*Album:* {row['Title']}")
+            
+            # CD & Track info
+            with cols[2]:
+                st.markdown(f"**Disc:** {row.get('CD', 'N/A')}")
+                st.markdown(f"**Track:** {row.get('Track Number', 'N/A')}")
+                st.markdown(f"**Format:** {row.get('Format', 'N/A')}")
 
 # Optional: File uploader for cover art corrections
 st.write("---")
