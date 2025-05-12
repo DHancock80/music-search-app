@@ -63,15 +63,6 @@ def search(df, query, search_type, format_filter):
     elif search_type == 'Album':
         results = results[results['Title'].str.lower().str.contains(query, na=False)]
 
-    if format_filter != 'All':
-        if 'Format' in results.columns:
-            if format_filter.lower() == 'album':
-                album_keywords = ['album', 'compilation', 'comp']
-                pattern = '|'.join(album_keywords)
-                results = results[results['Format'].str.lower().str.contains(pattern, na=False)]
-            else:
-                results = results[results['Format'].str.lower().str.contains(format_filter.lower(), na=False)]
-
     return results
 
 def fetch_discogs_cover(release_id):
@@ -122,13 +113,52 @@ if df.empty:
 
 search_query = st.text_input('Enter your search:', '')
 search_type = st.radio('Search by:', ['Song Title', 'Artist', 'Album'], horizontal=True)
-format_filter = st.selectbox('Format filter:', ['All', 'Album', 'Single'])
+
+# New format filter logic
+format_options = ['All', 'Albums', 'Singles', 'Videos']
+format_keywords = {
+    'Albums': ['album', 'compilation', 'comp'],
+    'Singles': ['single', 'ep'],
+    'Videos': ['video', 'dvd']
+}
+format_filter = st.radio('Format Filter:', format_options, index=0)
 
 if search_query:
-    results = search(df, search_query, search_type, format_filter)
+    full_results = search(df, search_query, search_type, format_filter='All')
+    
+    # Count breakdown
+    counts = {
+        'Albums': 0,
+        'Singles': 0,
+        'Videos': 0
+    }
+
+    for fmt_name, keywords in format_keywords.items():
+        pattern = '|'.join(keywords)
+        matching = full_results['Format'].str.lower().str.contains(pattern, na=False)
+        counts[fmt_name] = matching.sum()
+
+    total_unique = full_results['release_id'].nunique()
+    st.markdown(f"### 🔎 {total_unique} total result(s) found")
+    st.markdown(
+        f"- 🎵 **Albums**: {counts['Albums']} &nbsp;&nbsp;&nbsp; "
+        f"- 💿 **Singles**: {counts['Singles']} &nbsp;&nbsp;&nbsp; "
+        f"- 📼 **Videos**: {counts['Videos']}"
+    )
+
+    # Apply selected format filter
+    if format_filter == 'All':
+        results = full_results
+    else:
+        keywords = format_keywords.get(format_filter, [])
+        if keywords:
+            pattern = '|'.join(keywords)
+            results = full_results[full_results['Format'].str.lower().str.contains(pattern, na=False)]
+        else:
+            results = full_results
 
     unique_results = results.drop_duplicates(subset='release_id')
-    st.write(f"### Found {len(unique_results)} album(s)" if format_filter == 'Album' else f"### Found {len(results)} result(s)")
+    st.write(f"### Showing {len(unique_results)} album(s)" if format_filter == 'Albums' else f"### Showing {len(results)} result(s)")
 
     if results.empty:
         st.info("No results found.")
@@ -238,7 +268,7 @@ if search_query:
                     st.markdown(f"### {album_title}")
                     st.markdown(f"**Artist:** {display_artist}")
 
-                    if format_filter != 'Album':
+                    if format_filter != 'Albums':
                         tracklist = group[[
                             'Track Title', 'Artist', 'CD', 'Track Number'
                         ]].rename(columns={
