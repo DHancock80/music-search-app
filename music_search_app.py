@@ -78,6 +78,21 @@ def fetch_discogs_cover(release_id):
 # Streamlit app
 st.title('🎵 Music Search App')
 
+# ✅ Responsive CSS: wide song column only on desktop/tablet, wraps on all screens
+st.markdown("""
+    <style>
+    @media (min-width: 600px) {
+        .stDataFrame table td:first-child {
+            min-width: 250px !important;
+            white-space: normal !important;
+        }
+    }
+    .stDataFrame table td {
+        white-space: normal !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 df = load_data()
 
 if df.empty:
@@ -171,7 +186,7 @@ if search_query:
                             except FileNotFoundError:
                                 st.info("No override file found to remove.")
 
-                # ✅ Tracklist table (no index column, fully expanded with no scroll)
+                # ✅ Tracklist table (no index column, fully expanded, wraps long text)
                 tracklist = group[[
                     'Track Title', 'Artist', 'CD', 'Track Number', 'Format'
                 ]].rename(columns={
