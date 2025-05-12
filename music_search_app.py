@@ -49,7 +49,7 @@ def clean_artist_name(artist):
     artist = re.sub(r'\s+', ' ', artist).strip()
     return artist
 
-def search(df, query, search_type, format_filter):
+def search(df, query, search_type):
     if df.empty:
         return df
     query = query.lower().strip()
@@ -119,36 +119,34 @@ format_keywords = {
     'Singles': ['single', 'ep'],
     'Videos': ['video', 'dvd']
 }
-format_labels = ['All', 'Albums', 'Singles', 'Videos']
+format_labels = ['All', 'Tracks', 'Albums', 'Singles', 'Videos']
 
 if search_query:
-    full_results = search(df, search_query, search_type, format_filter='All')
+    full_results = search(df, search_query, search_type)
 
-    # Count unique release IDs per format
-    counts = {'All': full_results['release_id'].nunique()}
+    counts = {'All': len(full_results), 'Tracks': len(full_results)}
     for fmt_name, keywords in format_keywords.items():
         pattern = '|'.join(keywords)
         mask = full_results['Format'].str.lower().str.contains(pattern, na=False)
         counts[fmt_name] = full_results[mask]['release_id'].nunique()
 
-    # Show format radio buttons with counts
     format_display = [f"{label} ({counts.get(label, 0)})" for label in format_labels]
     selected_label = st.radio('Format Filter:', format_display, horizontal=True)
     format_filter = selected_label.split(' ')[0]
 
-    # Filter results based on selected format
-    if format_filter == 'All':
+    if format_filter == 'All' or format_filter == 'Tracks':
         results = full_results
     else:
         pattern = '|'.join(format_keywords[format_filter])
         results = full_results[full_results['Format'].str.lower().str.contains(pattern, na=False)]
 
+    st.markdown(f"### \U0001F50D Showing {len(results)} result(s)")
+
     if results.empty:
         st.info("No results found.")
     else:
-        st.markdown(f"### \U0001F50D Showing {results['release_id'].nunique()} result(s)")
-
-        expanded_cover_id = st.session_state.get("expanded_cover_id", None)
+        if 'expanded_cover_id' not in st.session_state:
+            st.session_state.expanded_cover_id = None
 
         cover_cache = {}
         new_covers = []
@@ -157,8 +155,6 @@ if search_query:
         for release_id, group in grouped:
             first_row = group.iloc[0]
             album_title = first_row['Title']
-
-            # Show 'Various' for compilations, even if individual artists exist in tracklist
             album_format = first_row.get('Format', '').lower()
             display_artist = "Various" if any(x in album_format for x in ['compilation', 'comp']) else first_row['Artist']
 
@@ -184,8 +180,10 @@ if search_query:
                         st.text("No cover art")
 
                     link_key = f"link_{release_id}"
-                    if st.button("Edit Cover Art", key=link_key):
-                        if expanded_cover_id == release_id:
+                    if st.markdown(f"<a href='#' style='font-size: 0.9em;' onclick=\"document.querySelector('[name={link_key}]').click();return false;\">Edit Cover Art</a>", unsafe_allow_html=True):
+                        pass
+                    if st.button("_", key=link_key):
+                        if st.session_state.expanded_cover_id == release_id:
                             st.session_state.expanded_cover_id = None
                         else:
                             st.session_state.expanded_cover_id = release_id
@@ -194,10 +192,9 @@ if search_query:
                     st.markdown(f"### {album_title}")
                     st.markdown(f"**Artist:** {display_artist}")
 
-                    if st.session_state.get("expanded_cover_id") == release_id:
+                    if st.session_state.expanded_cover_id == release_id:
                         new_url = st.text_input("Paste a new cover art URL:", key=f"url_{release_id}")
                         submit_col, reset_col = st.columns(2)
-
                         with submit_col:
                             if st.button("Submit new cover art", key=f"submit_{release_id}"):
                                 if new_url:
@@ -208,7 +205,6 @@ if search_query:
                                         updated = pd.concat([existing, new_entry], ignore_index=True)
                                     except FileNotFoundError:
                                         updated = new_entry
-
                                     updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
                                     commit_message = f"Manual update cover_overrides.csv ({datetime.utcnow().isoformat()} UTC)"
                                     gh_response = upload_to_github(COVER_OVERRIDES_FILE, GITHUB_REPO, GITHUB_TOKEN, GITHUB_BRANCH, commit_message)
@@ -218,9 +214,6 @@ if search_query:
                                         st.rerun()
                                     else:
                                         st.error(f"GitHub sync failed: {gh_response.status_code} - {gh_response.text}")
-                                else:
-                                    st.error("Please enter a valid URL.")
-
                         with reset_col:
                             if st.button("Reset to original cover", key=f"reset_{release_id}"):
                                 try:
