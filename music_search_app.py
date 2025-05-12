@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import re
 import requests
+from st_aggrid import AgGrid, GridOptionsBuilder
 
 # Constants
 CSV_FILE = 'expanded_discogs_tracklist.csv'
@@ -77,21 +78,6 @@ def fetch_discogs_cover(release_id):
 
 # Streamlit app
 st.title('🎵 Music Search App')
-
-# ✅ Responsive CSS: wide song column only on desktop/tablet, wraps on all screens
-st.markdown("""
-    <style>
-    @media (min-width: 600px) {
-        .stDataFrame table td:first-child {
-            min-width: 250px !important;
-            white-space: normal !important;
-        }
-    }
-    .stDataFrame table td {
-        white-space: normal !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
 
 df = load_data()
 
@@ -186,7 +172,7 @@ if search_query:
                             except FileNotFoundError:
                                 st.info("No override file found to remove.")
 
-                # ✅ Tracklist table (no index column, fully expanded, wraps long text)
+                # ✅ Tracklist table with AgGrid (auto-size + interactive)
                 tracklist = group[[
                     'Track Title', 'Artist', 'CD', 'Track Number', 'Format'
                 ]].rename(columns={
@@ -195,8 +181,16 @@ if search_query:
                     'Track Number': 'Track',
                 }).reset_index(drop=True)
 
-                # Dynamically set height: ~35 pixels per row to avoid scrolling
-                num_rows = len(tracklist)
-                height = 35 * (num_rows + 1)
+                # Build grid options
+                gb = GridOptionsBuilder.from_dataframe(tracklist)
+                gb.configure_default_column(resizable=True, wrapText=True, autoHeight=True)
+                grid_options = gb.build()
 
-                st.dataframe(tracklist, hide_index=True, use_container_width=True, height=height)
+                AgGrid(
+                    tracklist,
+                    gridOptions=grid_options,
+                    enable_enterprise_modules=False,
+                    allow_unsafe_jscode=False,
+                    theme='streamlit',  # native look
+                    fit_columns_on_grid_load=True,  # ✅ auto-size columns on load
+                )
