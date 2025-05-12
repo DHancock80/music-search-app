@@ -1,15 +1,12 @@
 import streamlit as st
 import pandas as pd
-import os
 import requests
+import base64
+import os
 
 # Config
 CSV_FILE = "expanded_discogs_tracklist.csv"
 COVER_OVERRIDE_FILE = "cover_overrides.csv"
-GITHUB_SYNC = False  # Set to True if you want GitHub sync active
-GITHUB_REPO = "YOUR_USERNAME/music-search-app"
-GITHUB_FILE_PATH = "cover_overrides.csv"
-GITHUB_TOKEN = "YOUR_GITHUB_TOKEN"
 
 # --- Helper Functions ---
 @st.cache_data
@@ -25,25 +22,43 @@ def load_cover_overrides():
 
 def save_cover_override(df):
     df.to_csv(COVER_OVERRIDE_FILE, index=False)
-    if GITHUB_SYNC:
+    if "GITHUB_TOKEN" in st.secrets:
         sync_to_github()
 
 def sync_to_github():
-    import base64
-    from github import Github
-    g = Github(GITHUB_TOKEN)
-    repo = g.get_repo(GITHUB_REPO)
+    repo = st.secrets["GITHUB_REPO"]
+    token = st.secrets["GITHUB_TOKEN"]
+    path = "cover_overrides.csv"
+    api_url = f"https://api.github.com/repos/{repo}/contents/{path}"
+
     with open(COVER_OVERRIDE_FILE, "rb") as file:
         content = file.read()
     content_b64 = base64.b64encode(content).decode()
-    try:
-        contents = repo.get_contents(GITHUB_FILE_PATH)
-        repo.update_file(contents.path, "Update cover_overrides.csv", content, contents.sha)
-    except:
-        repo.create_file(GITHUB_FILE_PATH, "Create cover_overrides.csv", content)
+
+    # Get current file SHA
+    r = requests.get(api_url, headers={"Authorization": f"token {token}"})
+    if r.status_code == 200:
+        sha = r.json()["sha"]
+        payload = {
+            "message": "Update cover_overrides.csv",
+            "content": content_b64,
+            "sha": sha
+        }
+        response = requests.put(api_url, json=payload, headers={"Authorization": f"token {token}"})
+    else:
+        # Create new file if it doesn't exist
+        payload = {
+            "message": "Create cover_overrides.csv",
+            "content": content_b64
+        }
+        response = requests.put(api_url, json=payload, headers={"Authorization": f"token {token}"})
+    if response.status_code in [200, 201]:
+        st.session_state["last_sync"] = "✅ cover_overrides.csv synced to GitHub."
+    else:
+        st.session_state["last_sync"] = f"❌ GitHub sync failed: {response.status_code} - {response.text}"
 
 def fetch_discogs_cover(release_id):
-    token = "YOUR_DISCOGS_API_TOKEN"
+    token = st.secrets["DISCOGS_TOKEN"]
     url = f"https://api.discogs.com/releases/{release_id}"
     headers = {"Authorization": f"Discogs token={token}"}
     try:
@@ -93,17 +108,16 @@ if search_term:
         album_artist = group["Artist"].iloc[0]
         album_format = group["Format"].iloc[0]
 
-        # Handle "Various" as album artist
+        # Handle Various artists label
         display_artist = album_artist if album_artist.lower() != "various" else "Various Artists"
 
-        # Try cover override first
+        # Get cover art (from override first)
         cover_row = cover_overrides[cover_overrides["release_id"] == release_id]
         if not cover_row.empty:
             cover_url = cover_row["cover_url"].values[0]
         else:
             cover_url = fetch_discogs_cover(release_id)
             if cover_url:
-                # Save it for next time
                 new_row = pd.DataFrame({"release_id": [release_id], "cover_url": [cover_url]})
                 cover_overrides = pd.concat([cover_overrides, new_row], ignore_index=True)
                 save_cover_override(cover_overrides)
@@ -114,7 +128,7 @@ if search_term:
             if cover_url:
                 st.image(cover_url, width=120)
             else:
-                st.write("(No cover art)")
+                st.write("(No cover art available)")
 
         with col2:
             st.markdown(f"### {album_title}")
@@ -123,16 +137,19 @@ if search_term:
             # Cover art update section
             with st.expander("Update Cover Art"):
                 new_cover = st.text_input(f"Paste a new cover art URL:", key=f"cover_{release_id}")
-                if st.button("Submit new cover art", key=f"submit_{release_id}"):
-                    cover_overrides = cover_overrides[cover_overrides["release_id"] != release_id]
-                    new_row = pd.DataFrame({"release_id": [release_id], "cover_url": [new_cover]})
-                    cover_overrides = pd.concat([cover_overrides, new_row], ignore_index=True)
-                    save_cover_override(cover_overrides)
-                    st.success("Cover art override saved! Please reload the app to see changes.")
-                if st.button("Reset to original cover", key=f"reset_{release_id}"):
-                    cover_overrides = cover_overrides[cover_overrides["release_id"] != release_id]
-                    save_cover_override(cover_overrides)
-                    st.success("Cover override removed! Reloading to apply changes...")
+                col_submit, col_reset = st.columns([1, 1])
+                with col_submit:
+                    if st.button("Submit new cover art", key=f"submit_{release_id}"):
+                        cover_overrides = cover_overrides[cover_overrides["release_id"] != release_id]
+                        new_row = pd.DataFrame({"release_id": [release_id], "cover_url": [new_cover]})
+                        cover_overrides = pd.concat([cover_overrides, new_row], ignore_index=True)
+                        save_cover_override(cover_overrides)
+                        st.success("Cover art override saved! Reload the app to see changes.")
+                with col_reset:
+                    if st.button("Reset to original cover", key=f"reset_{release_id}"):
+                        cover_overrides = cover_overrides[cover_overrides["release_id"] != release_id]
+                        save_cover_override(cover_overrides)
+                        st.success("Cover override removed. Reload to apply changes.")
 
             # Tracklist expander
             with st.expander("Click to view tracklist"):
@@ -147,6 +164,10 @@ if search_term:
                 tracklist = tracklist.reset_index(drop=True)
                 st.dataframe(tracklist, use_container_width=True, hide_index=True)
 
-# Debugging: view cover_overrides CSV
+# Debugging expander for cover_overrides
 with st.expander("🔧 View current cover_overrides.csv (debugging)"):
     st.dataframe(cover_overrides)
+
+# Show last GitHub sync result (if any)
+if "last_sync" in st.session_state:
+    st.success(st.session_state["last_sync"])
