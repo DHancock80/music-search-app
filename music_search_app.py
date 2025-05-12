@@ -172,7 +172,7 @@ if search_query:
                             except FileNotFoundError:
                                 st.info("No override file found to remove.")
 
-                # ✅ Tracklist table with AgGrid (auto-size + interactive)
+                # ✅ Tracklist table with AgGrid (auto-size + Disc/Track narrow columns)
                 tracklist = group[[
                     'Track Title', 'Artist', 'CD', 'Track Number', 'Format'
                 ]].rename(columns={
@@ -181,9 +181,14 @@ if search_query:
                     'Track Number': 'Track',
                 }).reset_index(drop=True)
 
-                # Build grid options
+                # Build grid options with custom widths
                 gb = GridOptionsBuilder.from_dataframe(tracklist)
                 gb.configure_default_column(resizable=True, wrapText=True, autoHeight=True)
+
+                # Set Disc and Track columns to be narrow (about 60px)
+                gb.configure_column("Disc", width=60)
+                gb.configure_column("Track", width=60)
+
                 grid_options = gb.build()
 
                 AgGrid(
@@ -192,5 +197,5 @@ if search_query:
                     enable_enterprise_modules=False,
                     allow_unsafe_jscode=False,
                     theme='streamlit',  # native look
-                    fit_columns_on_grid_load=True,  # ✅ auto-size columns on load
+                    fit_columns_on_grid_load=True,  # ✅ auto-size on load
                 )
