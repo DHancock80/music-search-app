@@ -1,4 +1,4 @@
-import streamlit as st
+""import streamlit as st
 import pandas as pd
 import re
 import requests
@@ -188,9 +188,8 @@ if search_query:
                     st.markdown(f"**Artist:** {album_artist}")
 
             with st.expander("Click to view tracklist", expanded=False):
+                # Always use actual artist per track, even for compilations
                 tracklist = group[['Track Title', 'Artist', 'CD', 'Track Number']].copy()
-                if is_compilation:
-                    tracklist['Artist'] = group['Artist'].values  # assign before renaming
 
                 tracklist = tracklist.rename(columns={
                     'Track Title': 'Song',
