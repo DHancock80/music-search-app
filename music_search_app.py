@@ -1,117 +1,69 @@
 import streamlit as st
 import pandas as pd
-import requests
-import os
-from PIL import Image
-from io import BytesIO
-
-# Load secrets (Discogs token)
-DISCOGS_TOKEN = st.secrets["discogs_token"]
-
-# Constants
-CSV_FILE = "expanded_discogs_tracklists.csv"
-COVER_OVERRIDE_FILE = "cover_overrides.csv"
-COVER_DIR = "cover_cache"
-
-# Ensure cover cache directory exists
-os.makedirs(COVER_DIR, exist_ok=True)
-
-@st.cache_data
-def load_data():
-    df = pd.read_csv(CSV_FILE)
-    return df
-
-@st.cache_data
-def load_cover_overrides():
-    if os.path.exists(COVER_OVERRIDE_FILE):
-        return pd.read_csv(COVER_OVERRIDE_FILE)
-    return pd.DataFrame(columns=["release_id", "image_url"])
-
-def save_cover_override(release_id, image_url):
-    overrides = load_cover_overrides()
-    new_entry = pd.DataFrame([[release_id, image_url]], columns=["release_id", "image_url"])
-    updated = pd.concat([overrides, new_entry], ignore_index=True)
-    updated.drop_duplicates(subset="release_id", keep="last", inplace=True)
-    updated.to_csv(COVER_OVERRIDE_FILE, index=False)
-
-@st.cache_data(show_spinner=False)
-def get_cover_image(release_id):
-    # Check for user override first
-    overrides = load_cover_overrides()
-    override_row = overrides[overrides["release_id"] == release_id]
-    if not override_row.empty:
-        return override_row.iloc[0]["image_url"]
-
-    # Check cache
-    local_path = os.path.join(COVER_DIR, f"{release_id}.jpg")
-    if os.path.exists(local_path):
-        return local_path
-
-    # Fetch from Discogs
-    url = f"https://api.discogs.com/releases/{release_id}?token={DISCOGS_TOKEN}"
-    try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            data = response.json()
-            image_url = data.get("images", [{}])[0].get("uri")
-            if image_url:
-                img_data = requests.get(image_url).content
-                with open(local_path, "wb") as f:
-                    f.write(img_data)
-                return local_path
-    except:
-        pass
-
-    return None
-
-# UI Layout
-st.set_page_config(page_title="Music Collection Search", layout="wide")
-st.title("🎵 Music Collection Search")
-
-# Search options
-search_type = st.radio("Search by:", ["Artist", "Title", "Track Title"], horizontal=True)
-query = st.text_input("Enter your search:")
+from fuzzywuzzy import fuzz
+from fuzzywuzzy import process
+import base64
 
 # Load data
-df = load_data()
+df = pd.read_csv("expanded_discogs_tracklists.csv").fillna("")
 
-# Search logic
-if query:
-    if search_type == "Artist":
-        results = df[df["Artist"].str.contains(query, case=False, na=False)]
-    elif search_type == "Title":
-        results = df[df["Title"].str.contains(query, case=False, na=False)]
-    elif search_type == "Track Title":
-        results = df[df["Track Title"].str.contains(query, case=False, na=False)]
+# Clean artist names for better matching
+def clean_artist_name(name):
+    name = name.lower()
+    name = name.replace("feat.", "").replace("ft.", "").replace("featuring", "")
+    name = name.replace("&", ",").replace(" and ", ",")
+    name = ''.join(c for c in name if c.isalnum() or c.isspace() or c == ',')
+    return [part.strip() for part in name.split(",") if part.strip()]
+
+df["clean_artists"] = df["Artist"].apply(clean_artist_name)
+
+# Allow storing user-corrected cover art
+if "cover_art_overrides" not in st.session_state:
+    st.session_state.cover_art_overrides = {}
+
+def fuzzy_search(query, choices, limit=10):
+    return process.extract(query, choices, scorer=fuzz.token_sort_ratio, limit=limit)
+
+def display_cover_art(release_id, default_url):
+    url = st.session_state.cover_art_overrides.get(release_id, default_url)
+    st.image(url, width=100)
+    
+    with st.expander("Update Cover Art"):
+        new_url = st.text_input(f"Paste image URL for {release_id}", key=f"url_{release_id}")
+        uploaded_image = st.file_uploader(f"Or upload an image", type=["png", "jpg", "jpeg"], key=f"upload_{release_id}")
+
+        if new_url:
+            st.session_state.cover_art_overrides[release_id] = new_url
+            st.success("Cover art URL updated.")
+        elif uploaded_image:
+            image_data = base64.b64encode(uploaded_image.read()).decode()
+            image_url = f"data:image/jpeg;base64,{image_data}"
+            st.session_state.cover_art_overrides[release_id] = image_url
+            st.success("Cover art uploaded.")
+
+# UI Layout
+st.title("🎵 Music Collection Search")
+
+query = st.text_input("Search your collection...")
+search_type = st.radio("Search by", ["Song", "Artist"], horizontal=True)
+format_filter = st.multiselect("Filter by format", ["Album", "Single", "Video"], default=["Album", "Single"])
+
+if st.button("Search") and query:
+    result = df[df["Format"].isin(format_filter)]
+
+    if search_type == "Song":
+        matches = fuzzy_search(query, result["Track Title"].tolist())
+        matched_titles = [match[0] for match in matches if match[1] > 70]
+        result = result[result["Track Title"].isin(matched_titles)]
+        result = result.sort_values("Track Title")
     else:
-        results = pd.DataFrame()
+        result = result[result["clean_artists"].apply(lambda x: any(fuzz.partial_ratio(query.lower(), a) > 70 for a in x))]
+        result = result.sort_values("Track Title")
 
-    st.markdown(f"### Found {len(results)} result(s)")
-
-    for _, row in results.iterrows():
+    for _, row in result.iterrows():
         st.markdown("---")
-        cols = st.columns([1, 3])
-        with cols[0]:
-            cover = get_cover_image(row["release_id"])
-            if cover:
-                try:
-                    st.image(cover, width=150)
-                except:
-                    st.warning("Invalid image format. You can override below.")
-            else:
-                st.info("No cover image available.")
-
-        with cols[1]:
-            st.subheader(f"{row['Artist']} - {row['Title']}")
-            st.text(f"Track {row['Track Number']} on Disc {row['CD']}")
-            st.text(f"Label: {row['Label']} | Format: {row['Format']} | Released: {row['Released']}")
-            st.text(f"Track Title: {row['Track Title']}")
-
-            # Allow image override
-            with st.expander("Submit a new cover image URL"):
-                new_url = st.text_input(f"New cover URL for Release ID {row['release_id']}", key=row['release_id'])
-                if st.button("Submit URL", key=f"btn_{row['release_id']}"):
-                    save_cover_override(row['release_id'], new_url)
-                    st.success("Cover override saved. Refresh to see changes.")
-else:
-    st.info("Enter a search term to begin.")
+        st.subheader(row["Track Title"])
+        st.write(f"**Artist:** {row['Artist']}")
+        st.write(f"**Album:** {row['Title']}")
+        st.write(f"**Format:** {row['Format']} | **Disc:** {row['CD']} | **Track #:** {row['Track Number']}")
+        display_cover_art(row["release_id"], f"https://api.discogs.com/releases/{row['release_id']}/images")
