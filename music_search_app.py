@@ -179,5 +179,5 @@ if search_query:
                     else:
                         st.text("No cover art")
 
-                    if st.button("Edit Cover Art", key=f"edit_{release_id}"):
+if st.button("Edit Cover Art", key=f"edit_{release_id}"):
     st.session_state.expanded_cover_id = release_id if st.session_state.expanded_cover_id != release_id else None
