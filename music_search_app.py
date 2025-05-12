@@ -187,9 +187,6 @@ if search_query:
                     st.markdown(f"### {album_title}")
                     st.markdown(f"**Artist:** {album_artist}")
 
-st.write("Debugging artists in group:")
-st.write(group[['Track Title', 'Artist']].head(10))
-
             with st.expander("Click to view tracklist", expanded=False):
                 # Always use actual artist per track, even for compilations
                 tracklist = group[['Track Title', 'Artist', 'CD', 'Track Number']].copy()
