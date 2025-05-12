@@ -17,13 +17,13 @@ GITHUB_BRANCH = 'main'
 @st.cache_data
 def load_data():
     try:
-        df = pd.read_csv(CSV_FILE, encoding='latin1')
+        df = pd.read_csv(CSV_FILE, encoding='utf-8-sig')
         
         if 'cover_art' not in df.columns:
             df['cover_art'] = None
         
         try:
-            overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
+            overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='utf-8-sig')
             if 'release_id' in overrides.columns and 'cover_url' in overrides.columns:
                 overrides = overrides.drop_duplicates(subset='release_id', keep='last')
                 df = df.merge(overrides, on='release_id', how='left', suffixes=('', '_override'))
@@ -65,7 +65,8 @@ def search(df, query, search_type, format_filter):
 
     if format_filter != 'All':
         if 'Format' in results.columns:
-            results = results[results['Format'].str.lower() == format_filter.lower()]
+            # 🔧 Updated filter: now matches if 'album' is anywhere in the Format string
+            results = results[results['Format'].str.lower().str.contains(format_filter.lower(), na=False)]
 
     return results
 
@@ -131,7 +132,7 @@ if search_query:
         st.info("No results found.")
     else:
         cover_cache = {}
-        new_covers = []  # Collect new covers to sync at the end
+        new_covers = []
         grouped = results.groupby('release_id')
 
         for release_id, group in grouped:
@@ -177,7 +178,7 @@ if search_query:
                             if new_url:
                                 new_entry = pd.DataFrame([{'release_id': release_id, 'cover_url': new_url}])
                                 try:
-                                    existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
+                                    existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='utf-8-sig')
                                     if 'release_id' not in existing.columns or 'cover_url' not in existing.columns:
                                         existing = pd.DataFrame(columns=['release_id', 'cover_url'])
                                     existing = existing[existing['release_id'] != release_id]
@@ -185,7 +186,7 @@ if search_query:
                                 except FileNotFoundError:
                                     updated = new_entry
 
-                                updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
+                                updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='utf-8-sig')
                                 commit_message = f"Manual update cover_overrides.csv ({datetime.utcnow().isoformat()} UTC)"
                                 gh_response = upload_to_github(
                                     COVER_OVERRIDES_FILE,
@@ -206,11 +207,11 @@ if search_query:
                     with reset_col:
                         if st.button("Reset to original cover", key=f"reset_{release_id}"):
                             try:
-                                existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
+                                existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='utf-8-sig')
                                 if 'release_id' not in existing.columns or 'cover_url' not in existing.columns:
                                     existing = pd.DataFrame(columns=['release_id', 'cover_url'])
                                 updated = existing[existing['release_id'] != release_id]
-                                updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
+                                updated.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='utf-8-sig')
                                 commit_message = f"Reset cover_overrides.csv ({datetime.utcnow().isoformat()} UTC)"
                                 gh_response = upload_to_github(
                                     COVER_OVERRIDES_FILE,
@@ -244,10 +245,9 @@ if search_query:
                     hide_index=True,
                 )
 
-        # After all fetches are done: save once & sync to GitHub
         if new_covers:
             try:
-                existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
+                existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='utf-8-sig')
                 if 'release_id' not in existing.columns or 'cover_url' not in existing.columns:
                     existing = pd.DataFrame(columns=['release_id', 'cover_url'])
                 for entry in new_covers:
@@ -256,7 +256,7 @@ if search_query:
             except FileNotFoundError:
                 existing = pd.DataFrame(new_covers)
 
-            existing.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
+            existing.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='utf-8-sig')
             commit_message = f"Batch sync cover_overrides.csv ({datetime.utcnow().isoformat()} UTC)"
             upload_to_github(
                 COVER_OVERRIDES_FILE,
