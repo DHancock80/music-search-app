@@ -138,6 +138,8 @@ if search_query:
                                 new_entry = pd.DataFrame([{'release_id': release_id, 'cover_url': new_url}])
                                 try:
                                     existing = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
+                                    # Replace any existing row for this release_id
+                                    existing = existing[existing['release_id'] != release_id]
                                     updated = pd.concat([existing, new_entry], ignore_index=True)
                                 except FileNotFoundError:
                                     updated = new_entry
