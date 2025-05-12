@@ -179,7 +179,9 @@ if search_query:
                     else:
                         st.text("No cover art")
 
-                    if st.button("Edit Cover Art", key=f"edit_{release_id}"):
+                    if st.markdown(f'<a href="#" style="font-size: 0.9em; color: #1f77b4; text-decoration: underline;" onclick="document.getElementById(\'edit_{release_id}\').click(); return false;">Edit Cover Art</a>', unsafe_allow_html=True):
+                        pass
+                    if st.button("", key=f"edit_{release_id}", help="Edit Cover Art", use_container_width=True):
                         st.session_state.expanded_cover_id = release_id if st.session_state.expanded_cover_id != release_id else None
 
                 with cols[1]:
@@ -227,8 +229,9 @@ if search_query:
                                     st.cache_data.clear()
                                     st.rerun()
 
-                    with st.expander("Click to view tracklist"):
-                        tracklist = group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
+                    with st.expander("Click to view tracklist", expanded=False):
+                        tracklist = group[['Track Title', 'Artist', 'CD', 'Track Number']].copy()
+                        tracklist['Artist'] = group['Artist'].rename(columns={
                             'Track Title': 'Song',
                             'CD': 'Disc',
                             'Track Number': 'Track'
