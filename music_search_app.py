@@ -79,7 +79,7 @@ def fetch_discogs_cover(release_id):
 # Streamlit app
 st.title('🎵 Music Search App')
 
-# ✅ Lock the table width + disable resizing, keep mobile-friendly
+# ✅ Improved CSS: full-width lock + fix empty space + prevent horizontal scrollbar
 st.markdown("""
     <style>
     .block-container, .ag-theme-streamlit, .ag-root-wrapper {
@@ -88,8 +88,15 @@ st.markdown("""
         min-width: 100% !important;
         resize: none !important;
     }
-    .ag-body-viewport {
+    .ag-body-viewport, .ag-center-cols-clipper {
         overflow-x: hidden !important;
+    }
+    .stContainer {
+        padding-bottom: 0px !important;
+    }
+    .ag-center-cols-container {
+        min-height: auto !important;
+        height: auto !important;
     }
     </style>
 """, unsafe_allow_html=True)
