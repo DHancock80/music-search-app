@@ -192,5 +192,4 @@ if search_query:
                             'CD': 'Disc',
                             'Track Number': 'Track'
                         })
-                        tracklist['Artist'] = group['Artist'].values
                         st.dataframe(tracklist, use_container_width=True, hide_index=True)
