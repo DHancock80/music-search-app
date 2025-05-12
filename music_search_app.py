@@ -89,19 +89,22 @@ def fetch_discogs_cover(release_id):
 # Streamlit app
 st.title('🎵 Music Search App')
 
-# Add a bit of CSS to style each result card
+# Add CSS for card styling
 st.markdown("""
     <style>
-    .result-card {
+    .album-card {
         border: 2px solid #ddd;
         border-radius: 10px;
         padding: 15px;
-        margin-bottom: 20px;
+        margin-bottom: 25px;
         background-color: #f9f9f9;
     }
-    .thumbnail {
-        display: block;
-        margin-bottom: 10px;
+    .album-header {
+        display: flex;
+        align-items: center;
+    }
+    .album-cover {
+        margin-right: 20px;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -122,41 +125,58 @@ if search_query:
     if results.empty:
         st.info("No results found.")
     else:
-        st.write("#### Results")
+        # Cache covers per release_id
+        cover_cache = {}
+        
+        # Group by release_id
+        grouped = results.groupby('release_id')
 
-        for idx, row in results.iterrows():
+        for release_id, group in grouped:
+            # Pick first row to get album info
+            first_row = group.iloc[0]
+            album_title = first_row['Title']
+            artist = first_row['Artist']
+            cover = first_row.get('cover_art_final') or first_row.get('cover_art')
+            
+            if pd.isna(cover) and pd.notna(release_id):
+                if release_id not in cover_cache:
+                    cover = fetch_discogs_cover(release_id)
+                    cover_cache[release_id] = cover
+                else:
+                    cover = cover_cache[release_id]
+            else:
+                cover_cache[release_id] = cover  # cache whatever we have
+
             with st.container():
-                st.markdown('<div class="result-card">', unsafe_allow_html=True)
+                st.markdown('<div class="album-card">', unsafe_allow_html=True)
 
-                # Get the cover image
-                cover = row.get('cover_art_final') or row.get('cover_art')
-                if pd.isna(cover) and pd.notna(row.get('release_id')):
-                    cover = fetch_discogs_cover(row['release_id'])
-                
-                cols = st.columns([1, 4, 2])
-
-                # Thumbnail
+                # Album header with cover + info
+                st.markdown('<div class="album-header">', unsafe_allow_html=True)
+                cols = st.columns([1, 5])
                 with cols[0]:
                     if cover:
-                        # Make thumbnail clickable to open full image in new tab
                         st.markdown(
                             f'<a href="{cover}" target="_blank">'
-                            f'<img src="{cover}" width="80" class="thumbnail"></a>',
+                            f'<img src="{cover}" width="120" class="album-cover"></a>',
                             unsafe_allow_html=True
                         )
                     else:
                         st.text("No cover art")
-
-                # Song info
                 with cols[1]:
-                    st.markdown(f"**{row['Track Title']}** by **{row['Artist']}**")
-                    st.markdown(f"*Album:* {row['Title']}")
+                    st.markdown(f"### {album_title}")
+                    st.markdown(f"**Artist:** {artist}")
+                st.markdown('</div>', unsafe_allow_html=True)
 
-                # CD & Track info
-                with cols[2]:
-                    st.markdown(f"**Disc:** {row.get('CD', 'N/A')}")
-                    st.markdown(f"**Track:** {row.get('Track Number', 'N/A')}")
-                    st.markdown(f"**Format:** {row.get('Format', 'N/A')}")
+                # Tracklist table
+                tracklist = group[[
+                    'Track Title', 'Artist', 'CD', 'Track Number', 'Format'
+                ]].rename(columns={
+                    'Track Title': 'Song',
+                    'CD': 'Disc',
+                    'Track Number': 'Track',
+                }).reset_index(drop=True)
+
+                st.table(tracklist)
 
                 st.markdown('</div>', unsafe_allow_html=True)
 
