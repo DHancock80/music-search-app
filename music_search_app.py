@@ -1,69 +1,105 @@
 import streamlit as st
 import pandas as pd
-from fuzzywuzzy import fuzz
-from fuzzywuzzy import process
-import base64
+import re
+from rapidfuzz import fuzz
+import os
 
-# Load data
-df = pd.read_csv("expanded_discogs_tracklists.csv").fillna("")
+# Load and clean data
+@st.cache_data
+def load_data():
+    df = pd.read_csv("expanded_discogs_tracklists.csv")
+    df.columns = df.columns.str.strip()
+    df = df.dropna(subset=["Artist", "Track Title"])
+    return df
 
-# Clean artist names for better matching
+# Clean artist string
 def clean_artist_name(name):
     name = name.lower()
-    name = name.replace("feat.", "").replace("ft.", "").replace("featuring", "")
-    name = name.replace("&", ",").replace(" and ", ",")
-    name = ''.join(c for c in name if c.isalnum() or c.isspace() or c == ',')
-    return [part.strip() for part in name.split(",") if part.strip()]
+    name = re.sub(r'[\*\(\)#\[\]]', '', name)  # remove *, (#), [], etc.
+    name = re.sub(r'\s+', ' ', name)  # collapse spaces
+    return name.strip()
 
-df["clean_artists"] = df["Artist"].apply(clean_artist_name)
+# Extract all artists from collaborations
+def extract_individual_artists(artist_str):
+    delimiters = [',', '&', ' and ', ' feat. ', ' featuring ', ' ft. ']
+    pattern = '|'.join(map(re.escape, delimiters))
+    split_artists = re.split(pattern, artist_str, flags=re.IGNORECASE)
+    return [clean_artist_name(a) for a in split_artists if a.strip()]
 
-# Allow storing user-corrected cover art
-if "cover_art_overrides" not in st.session_state:
-    st.session_state.cover_art_overrides = {}
+# Fuzzy match
+def fuzzy_artist_match(df, query):
+    query_clean = clean_artist_name(query)
+    results = []
+    for idx, row in df.iterrows():
+        artists = extract_individual_artists(row['Artist'])
+        for artist in artists:
+            if fuzz.partial_ratio(query_clean, artist) >= 85:
+                results.append(row)
+                break
+    return pd.DataFrame(results)
 
-def fuzzy_search(query, choices, limit=10):
-    return process.extract(query, choices, scorer=fuzz.token_sort_ratio, limit=limit)
+# Filter video tracks
+def filter_video(df, include_video):
+    if include_video == "Audio Only":
+        return df[df['Format'].str.contains("video", case=False) == False]
+    elif include_video == "Video Only":
+        return df[df['Format'].str.contains("video", case=False)]
+    return df
 
-def display_cover_art(release_id, default_url):
-    url = st.session_state.cover_art_overrides.get(release_id, default_url)
-    st.image(url, width=100)
-    
-    with st.expander("Update Cover Art"):
-        new_url = st.text_input(f"Paste image URL for {release_id}", key=f"url_{release_id}")
-        uploaded_image = st.file_uploader(f"Or upload an image", type=["png", "jpg", "jpeg"], key=f"upload_{release_id}")
+# Show cover art from Discogs
+@st.cache_data
+def get_cover_url(release_id):
+    return f"https://img.discogs.com/placeholder/{release_id}.jpg"
 
-        if new_url:
-            st.session_state.cover_art_overrides[release_id] = new_url
-            st.success("Cover art URL updated.")
-        elif uploaded_image:
-            image_data = base64.b64encode(uploaded_image.read()).decode()
-            image_url = f"data:image/jpeg;base64,{image_data}"
-            st.session_state.cover_art_overrides[release_id] = image_url
-            st.success("Cover art uploaded.")
+# Load session search history
+def update_search_history(query):
+    if 'history' not in st.session_state:
+        st.session_state.history = []
+    if query and query not in st.session_state.history:
+        st.session_state.history.insert(0, query)
+        st.session_state.history = st.session_state.history[:10]  # limit to 10
 
-# UI Layout
-st.title("🎵 Music Collection Search")
+# Main app
+st.set_page_config(page_title="Music Search App", layout="wide")
+st.title("🎵 DH Music Collection Search")
 
-query = st.text_input("Search your collection...")
-search_type = st.radio("Search by", ["Song", "Artist"], horizontal=True)
-format_filter = st.multiselect("Filter by format", ["Album", "Single", "Video"], default=["Album", "Single"])
+# Load CSV
+try:
+    df = load_data()
+except FileNotFoundError:
+    st.error("CSV file not found. Please upload expanded_discogs_tracklists.csv.")
+    st.stop()
 
-if st.button("Search") and query:
-    result = df[df["Format"].isin(format_filter)]
+# Sidebar options
+query = st.text_input("Search Artist (fuzzy matching supported)")
+format_filter = st.selectbox("Show:", ["All", "Audio Only", "Video Only"])
 
-    if search_type == "Song":
-        matches = fuzzy_search(query, result["Track Title"].tolist())
-        matched_titles = [match[0] for match in matches if match[1] > 70]
-        result = result[result["Track Title"].isin(matched_titles)]
-        result = result.sort_values("Track Title")
+if query:
+    update_search_history(query)
+    filtered_df = fuzzy_artist_match(df, query)
+    filtered_df = filter_video(filtered_df, format_filter)
+
+    if not filtered_df.empty:
+        st.markdown(f"### Results for **{query}** ({len(filtered_df)} matches)")
+        for _, row in filtered_df.iterrows():
+            with st.container():
+                col1, col2 = st.columns([1, 4])
+                with col1:
+                    release_id = row.get("release_id", "")
+                    if pd.notna(release_id):
+                        st.image(get_cover_url(release_id), width=100)
+                with col2:
+                    st.markdown(f"**{row['Track Title']}**  ")
+                    st.markdown(f"Artist: *{row['Artist']}*  ")
+                    st.markdown(f"Album: {row['Title']} ({row.get('Format', 'Unknown')})")
+                    st.markdown("---")
     else:
-        result = result[result["clean_artists"].apply(lambda x: any(fuzz.partial_ratio(query.lower(), a) > 70 for a in x))]
-        result = result.sort_values("Track Title")
+        st.warning("No results found.")
 
-    for _, row in result.iterrows():
-        st.markdown("---")
-        st.subheader(row["Track Title"])
-        st.write(f"**Artist:** {row['Artist']}")
-        st.write(f"**Album:** {row['Title']}")
-        st.write(f"**Format:** {row['Format']} | **Disc:** {row['CD']} | **Track #:** {row['Track Number']}")
-        display_cover_art(row["release_id"], f"https://api.discogs.com/releases/{row['release_id']}/images")
+# Show search history
+if 'history' in st.session_state and st.session_state.history:
+    st.sidebar.markdown("### 🔎 Search History")
+    for past_query in st.session_state.history:
+        if st.sidebar.button(past_query):
+            query = past_query
+            st.experimental_rerun()
