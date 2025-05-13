@@ -7,7 +7,7 @@ import base64
 from datetime import datetime
 
 # Constants
-CSV_FILE = 'expanded_discogs_tracklist.csv'
+CSV_FILE = 'expanded_discogs_tracklists.csv'
 COVER_OVERRIDES_FILE = 'cover_overrides.csv'
 DISCOGS_API_TOKEN = st.secrets["DISCOGS_API_TOKEN"]
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
