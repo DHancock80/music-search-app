@@ -179,9 +179,8 @@ if search_query:
                     else:
                         st.text("No cover art")
 
-                    if st.button("Edit Cover Art", key=f"edit_link_{release_id}"):
+                    if st.markdown(f'<a href="#" style="display:inline-block;margin-top:10px;color:#00f;text-decoration:underline;font-size:14px;" onclick="window.dispatchEvent(new CustomEvent(\"expandCoverArt\", {{ detail: {release_id} }})); return false;">Edit Cover Art</a>', unsafe_allow_html=True):
                         st.session_state.expanded_cover_id = release_id
-                        st.experimental_rerun()
 
                 with cols[1]:
                     st.markdown(f"### {album_title}")
