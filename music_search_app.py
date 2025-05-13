@@ -19,6 +19,17 @@ def load_data():
     try:
         df = pd.read_csv(CSV_FILE, encoding='latin1')
 
+        # Drop unnamed index column if present
+        if df.columns[0].startswith("Unnamed"):
+            df = df.drop(columns=[df.columns[0]])
+
+        # Ensure expected columns exist
+        expected_columns = ['Artist', 'Title', 'Label', 'Format', 'Rating', 'Released', 'release_id', 'CD', 'Track Number', 'Track Title']
+        missing = [col for col in expected_columns if col not in df.columns]
+        if missing:
+            st.warning(f"Missing expected columns in CSV: {missing}")
+
+        # Ensure cover column exists
         if 'cover_art' not in df.columns:
             df['cover_art'] = None
 
@@ -199,6 +210,5 @@ if search_query:
 
                     st.dataframe(tracklist[['Song', 'Artist', 'Disc', 'Track']], use_container_width=True, hide_index=True)
 
-                    # DEBUG: Show raw entries from the dataset for the album
                     st.subheader("Debug: Raw data for this release")
                     st.dataframe(df[df['release_id'] == release_id][['Track Title', 'Artist']], hide_index=True)
