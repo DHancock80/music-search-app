@@ -19,17 +19,14 @@ def load_data():
     try:
         df = pd.read_csv(CSV_FILE, encoding='latin1')
 
-        # Drop unnamed index column if present
         if df.columns[0].startswith("Unnamed"):
             df = df.drop(columns=[df.columns[0]])
 
-        # Ensure expected columns exist
         expected_columns = ['Artist', 'Title', 'Label', 'Format', 'Rating', 'Released', 'release_id', 'CD', 'Track Number', 'Track Title']
         missing = [col for col in expected_columns if col not in df.columns]
         if missing:
             st.warning(f"Missing expected columns in CSV: {missing}")
 
-        # Ensure cover column exists
         if 'cover_art' not in df.columns:
             df['cover_art'] = None
 
@@ -99,10 +96,7 @@ def upload_to_github(file_path, repo, token, branch, commit_message):
     content_b64 = base64.b64encode(content).decode()
 
     get_resp = requests.get(api_url, headers=headers, params={"ref": branch})
-    if get_resp.status_code == 200:
-        sha = get_resp.json()['sha']
-    else:
-        sha = None
+    sha = get_resp.json()['sha'] if get_resp.status_code == 200 else None
 
     data = {
         "message": commit_message,
@@ -118,7 +112,6 @@ def upload_to_github(file_path, repo, token, branch, commit_message):
 st.title('Music Search App')
 
 df = load_data()
-
 if df.empty:
     st.stop()
 
@@ -134,7 +127,6 @@ format_labels = ['All', 'Albums', 'Singles', 'Videos']
 
 if search_query:
     full_results = search(df, search_query, search_type)
-
     counts = {'All': len(full_results)}
     for fmt_name, keywords in format_keywords.items():
         pattern = '|'.join(keywords)
@@ -145,11 +137,7 @@ if search_query:
     selected_label = st.radio('Format Filter:', format_display, horizontal=True)
     format_filter = selected_label.split(' ')[0]
 
-    if format_filter == 'All':
-        results = full_results
-    else:
-        pattern = '|'.join(format_keywords[format_filter])
-        results = full_results[full_results['Format'].str.lower().str.contains(pattern, na=False)]
+    results = full_results if format_filter == 'All' else full_results[full_results['Format'].str.lower().str.contains('|'.join(format_keywords[format_filter]), na=False)]
 
     st.markdown(f"### \U0001F50D Showing {len(results)} result(s)")
 
@@ -191,8 +179,7 @@ if search_query:
                     else:
                         st.text("No cover art")
 
-                    if st.button("Edit Cover Art", key=f"edit_{release_id}"):
-                        st.session_state.expanded_cover_id = release_id if st.session_state.expanded_cover_id != release_id else None
+                    st.markdown(f'<a href="#" style="text-decoration: underline; font-size: 0.85rem;">Edit Cover Art</a>', unsafe_allow_html=True)
 
                 with cols[1]:
                     st.markdown(f"### {album_title}")
@@ -208,7 +195,12 @@ if search_query:
                     tracklist['Artist'] = tracklist['Artist'].fillna("Unknown")
                     tracklist = tracklist.sort_values(by=['Disc', 'Track'])
 
-                    st.dataframe(tracklist[['Song', 'Artist', 'Disc', 'Track']], use_container_width=True, hide_index=True)
-
-                    st.subheader("Debug: Raw data for this release")
-                    st.dataframe(df[df['release_id'] == release_id][['Track Title', 'Artist']], hide_index=True)
+                    st.dataframe(
+                        tracklist[['Song', 'Artist', 'Disc', 'Track']],
+                        column_config={
+                            "Disc": st.column_config.NumberColumn(width='small'),
+                            "Track": st.column_config.NumberColumn(width='small')
+                        },
+                        use_container_width=True,
+                        hide_index=True
+                    )
