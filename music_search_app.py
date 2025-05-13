@@ -32,9 +32,13 @@ def load_data():
 
         try:
             overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1', on_bad_lines='skip')
-            overrides = overrides.drop_duplicates(subset='release_id', keep='last')
-            df = df.merge(overrides, on='release_id', how='left', suffixes=('', '_override'))
-            df['cover_art_final'] = df['cover_url'].combine_first(df['cover_art'])
+            if 'release_id' not in overrides.columns or 'cover_url' not in overrides.columns:
+                st.warning("Overrides file missing required columns. Skipping override merge.")
+                df['cover_art_final'] = df['cover_art']
+            else:
+                overrides = overrides.drop_duplicates(subset='release_id', keep='last')
+                df = df.merge(overrides, on='release_id', how='left', suffixes=('', '_override'))
+                df['cover_art_final'] = df['cover_url'].combine_first(df['cover_art'])
         except Exception as e:
             st.warning(f"Could not read cover overrides: {e}")
             df['cover_art_final'] = df['cover_art']
