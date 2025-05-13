@@ -139,7 +139,7 @@ if search_query:
 
     results = full_results if format_filter == 'All' else full_results[full_results['Format'].str.lower().str.contains('|'.join(format_keywords[format_filter]), na=False)]
 
-    st.markdown(f"### \\U0001F50D Showing {len(results)} result(s)")
+    st.markdown(f"### \U0001F50D Showing {len(results)} result(s)")
 
     if results.empty:
         st.info("No results found.")
@@ -179,8 +179,7 @@ if search_query:
                     else:
                         st.text("No cover art")
 
-                    if st.markdown(f'<a href="#{release_id}" style="display:inline-block;margin-top:10px;" onclick="window.location.reload();">Edit Cover Art</a>', unsafe_allow_html=True):
-                        st.session_state.expanded_cover_id = release_id if st.session_state.expanded_cover_id != release_id else None
+                    link_clicked = st.markdown(f'<a href="#" style="display:inline-block;margin-top:10px;" onclick="window.dispatchEvent(new CustomEvent(\"stExpandCoverArt\", {{ detail: {release_id} }})); return false;">Edit Cover Art</a>', unsafe_allow_html=True)
 
                 with cols[1]:
                     st.markdown(f"### {album_title}")
