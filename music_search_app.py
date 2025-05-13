@@ -179,7 +179,7 @@ if search_query:
                     else:
                         st.text("No cover art")
 
-                    if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
+                    if st.button("Edit Cover Art", key=f"edit_btn_{release_id}", help="Edit cover art"):
                         if st.session_state.expanded_cover_id == release_id:
                             st.session_state.expanded_cover_id = None
                         else:
@@ -198,12 +198,16 @@ if search_query:
                                 if new_url:
                                     df.loc[df['release_id'] == release_id, 'cover_url'] = new_url
                                     df.to_csv(COVER_OVERRIDES_FILE, index=False)
+                                    commit_message = f"Manual update ({datetime.utcnow().isoformat()} UTC)"
+                                    upload_to_github(COVER_OVERRIDES_FILE, GITHUB_REPO, GITHUB_TOKEN, GITHUB_BRANCH, commit_message)
                                     st.success("Cover art updated!")
                                     st.rerun()
                         with col2:
                             if st.button("Revert to original Cover Art", key=f"revert_{release_id}"):
                                 df.loc[df['release_id'] == release_id, 'cover_url'] = None
                                 df.to_csv(COVER_OVERRIDES_FILE, index=False)
+                                commit_message = f"Manual revert ({datetime.utcnow().isoformat()} UTC)"
+                                upload_to_github(COVER_OVERRIDES_FILE, GITHUB_REPO, GITHUB_TOKEN, GITHUB_BRANCH, commit_message)
                                 st.success("Cover art reverted!")
                                 st.rerun()
 
