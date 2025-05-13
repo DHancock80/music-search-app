@@ -179,11 +179,16 @@ if search_query:
                     else:
                         st.text("No cover art")
 
-                    st.markdown(f'<a href="#" style="text-decoration: underline; font-size: 0.85rem;">Edit Cover Art</a>', unsafe_allow_html=True)
+                    if st.button("Edit Cover Art", key=f"edit_{release_id}"):
+                        st.session_state.expanded_cover_id = release_id if st.session_state.expanded_cover_id != release_id else None
 
                 with cols[1]:
                     st.markdown(f"### {album_title}")
                     st.markdown(f"**Artist:** {album_artist}")
+
+                if st.session_state.expanded_cover_id == release_id:
+                    with st.expander("Update Cover Art", expanded=True):
+                        st.text_input("Enter new cover art URL:", key=f"new_cover_{release_id}")
 
                 with st.expander("Click to view tracklist", expanded=False):
                     tracklist = group[['Artist', 'Track Title', 'CD', 'Track Number']].copy()
