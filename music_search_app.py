@@ -18,14 +18,8 @@ GITHUB_BRANCH = 'main'
 def load_data():
     try:
         df = pd.read_csv(CSV_FILE, encoding='latin1')
-
         if df.columns[0].startswith("Unnamed"):
             df = df.drop(columns=[df.columns[0]])
-
-        expected_columns = ['Artist', 'Title', 'Label', 'Format', 'Rating', 'Released', 'release_id', 'CD', 'Track Number', 'Track Title']
-        missing = [col for col in expected_columns if col not in df.columns]
-        if missing:
-            st.warning(f"Missing expected columns in CSV: {missing}")
 
         if 'cover_art' not in df.columns:
             df['cover_art'] = None
@@ -155,6 +149,12 @@ if search_query:
             artist = first_row['Artist']
             cover_url = first_row.get('cover_art_final')
 
+            # Attempt to fetch from Discogs if missing
+            if pd.isna(cover_url) or cover_url == '':
+                cover_url = fetch_discogs_cover(release_id)
+                if cover_url:
+                    update_cover_override(release_id, cover_url)
+
             with st.container():
                 cols = st.columns([1, 4])
                 with cols[0]:
@@ -172,15 +172,17 @@ if search_query:
                 if st.session_state.expanded_cover_id == release_id:
                     with st.expander("Update Cover Art", expanded=True):
                         new_url = st.text_input("Enter new cover art URL:", key=f"url_{release_id}")
-                        cols2 = st.columns(2)
+                        cols2 = st.columns([1, 1])
                         with cols2[0]:
                             if st.button("Upload custom URL", key=f"upload_{release_id}"):
                                 update_cover_override(release_id, new_url)
                                 st.success("Custom URL uploaded and synced to GitHub!")
+                                st.rerun()
                         with cols2[1]:
                             if st.button("Revert to original Cover Art", key=f"revert_{release_id}"):
                                 remove_cover_override(release_id)
                                 st.success("Cover override removed and synced to GitHub!")
+                                st.rerun()
 
                 with st.expander("Click to view tracklist"):
                     tracklist = group[[
