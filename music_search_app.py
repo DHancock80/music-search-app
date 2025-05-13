@@ -111,6 +111,9 @@ def upload_to_github(file_path, repo, token, branch, commit_message):
 
 st.title('Music Search App')
 
+if 'expanded_cover_id' not in st.session_state:
+    st.session_state.expanded_cover_id = None
+
 df = load_data()
 if df.empty:
     st.stop()
@@ -144,9 +147,6 @@ if search_query:
     if results.empty:
         st.info("No results found.")
     else:
-        if 'expanded_cover_id' not in st.session_state:
-            st.session_state.expanded_cover_id = None
-
         cover_cache = {}
         grouped = results.groupby('release_id')
 
@@ -179,8 +179,9 @@ if search_query:
                     else:
                         st.text("No cover art")
 
-                    link_html = f'<a href="#" style="display:inline-block;margin-top:10px;" onclick="window.dispatchEvent(new CustomEvent(\'expandCoverArt\', {{ detail: {release_id} }})); return false;">Edit Cover Art</a>'
-                    st.markdown(link_html, unsafe_allow_html=True)
+                    if st.button("Edit Cover Art", key=f"edit_link_{release_id}"):
+                        st.session_state.expanded_cover_id = release_id
+                        st.experimental_rerun()
 
                 with cols[1]:
                     st.markdown(f"### {album_title}")
