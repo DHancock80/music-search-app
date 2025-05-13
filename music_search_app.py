@@ -179,8 +179,11 @@ if search_query:
                     else:
                         st.text("No cover art")
 
-                    if st.markdown(f'<a href="#" style="display:inline-block;margin-top:10px;color:#00f;text-decoration:underline;font-size:14px;" onclick="window.dispatchEvent(new CustomEvent(\"expandCoverArt\", {{ detail: {release_id} }})); return false;">Edit Cover Art</a>', unsafe_allow_html=True):
-                        st.session_state.expanded_cover_id = release_id
+                    if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
+                        if st.session_state.expanded_cover_id == release_id:
+                            st.session_state.expanded_cover_id = None
+                        else:
+                            st.session_state.expanded_cover_id = release_id
 
                 with cols[1]:
                     st.markdown(f"### {album_title}")
@@ -189,14 +192,15 @@ if search_query:
                 if st.session_state.expanded_cover_id == release_id:
                     with st.expander("Update Cover Art", expanded=True):
                         new_url = st.text_input("Enter new cover art URL:", key=f"new_cover_{release_id}")
-                        b1, b2 = st.columns([1, 1])
-                        with b1:
+                        col1, col2 = st.columns([1, 1])
+                        with col1:
                             if st.button("Upload custom URL", key=f"upload_{release_id}"):
-                                df.loc[df['release_id'] == release_id, 'cover_url'] = new_url
-                                df.to_csv(COVER_OVERRIDES_FILE, index=False)
-                                st.success("Cover art updated!")
-                                st.rerun()
-                        with b2:
+                                if new_url:
+                                    df.loc[df['release_id'] == release_id, 'cover_url'] = new_url
+                                    df.to_csv(COVER_OVERRIDES_FILE, index=False)
+                                    st.success("Cover art updated!")
+                                    st.rerun()
+                        with col2:
                             if st.button("Revert to original Cover Art", key=f"revert_{release_id}"):
                                 df.loc[df['release_id'] == release_id, 'cover_url'] = None
                                 df.to_csv(COVER_OVERRIDES_FILE, index=False)
