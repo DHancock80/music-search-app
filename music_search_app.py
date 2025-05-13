@@ -132,12 +132,62 @@ def remove_cover_override(release_id):
     except FileNotFoundError:
         pass
 
-# App continues unchanged from here...
-
+# App UI
 st.title('Music Search App')
 
 if 'expanded_cover_id' not in st.session_state:
     st.session_state.expanded_cover_id = None
 
-# remaining app logic as-is...
-# no changes needed below unless new bugs are discovered
+search_query = st.text_input('Enter your search:', '')
+search_type = st.radio('Search by:', ['Song Title', 'Artist', 'Album'], horizontal=True)
+
+if search_query:
+    df = load_data()
+    results = search(df, search_query, search_type)
+    unique_results = results.drop_duplicates(subset='release_id')
+
+    if unique_results.empty:
+        st.info("No results found.")
+    else:
+        for release_id, group in results.groupby('release_id'):
+            first_row = group.iloc[0]
+            title = first_row['Title']
+            artist = first_row['Artist']
+            cover_url = first_row.get('cover_art_final')
+
+            with st.container():
+                cols = st.columns([1, 4])
+                with cols[0]:
+                    if cover_url:
+                        st.image(cover_url, width=120)
+                    else:
+                        st.markdown("No cover art")
+
+                with cols[1]:
+                    st.markdown(f"### {title}")
+                    st.markdown(f"**Artist:** {artist}")
+                    if st.button("Edit Cover Art", key=f"edit_{release_id}"):
+                        st.session_state.expanded_cover_id = release_id if st.session_state.expanded_cover_id != release_id else None
+
+                if st.session_state.expanded_cover_id == release_id:
+                    with st.expander("Update Cover Art", expanded=True):
+                        new_url = st.text_input("Enter new cover art URL:", key=f"url_{release_id}")
+                        cols2 = st.columns(2)
+                        with cols2[0]:
+                            if st.button("Upload custom URL", key=f"upload_{release_id}"):
+                                update_cover_override(release_id, new_url)
+                                st.success("Custom URL uploaded and synced to GitHub!")
+                        with cols2[1]:
+                            if st.button("Revert to original Cover Art", key=f"revert_{release_id}"):
+                                remove_cover_override(release_id)
+                                st.success("Cover override removed and synced to GitHub!")
+
+                with st.expander("Click to view tracklist"):
+                    tracklist = group[[
+                        'Track Title', 'Artist', 'CD', 'Track Number', 'Format'
+                    ]].rename(columns={
+                        'Track Title': 'Song',
+                        'CD': 'Disc',
+                        'Track Number': 'Track'
+                    })
+                    st.dataframe(tracklist, use_container_width=True, hide_index=True)
