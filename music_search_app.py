@@ -139,7 +139,7 @@ if search_query:
 
     results = full_results if format_filter == 'All' else full_results[full_results['Format'].str.lower().str.contains('|'.join(format_keywords[format_filter]), na=False)]
 
-    st.markdown(f"### \U0001F50D Showing {len(results)} result(s)")
+    st.markdown(f"### \\U0001F50D Showing {len(results)} result(s)")
 
     if results.empty:
         st.info("No results found.")
@@ -179,10 +179,8 @@ if search_query:
                     else:
                         st.text("No cover art")
 
-                    if st.button("Edit Cover Art", key=f"edit_{release_id}", use_container_width=True):
-                        st.session_state.expanded_cover_id = (
-                            release_id if st.session_state.expanded_cover_id != release_id else None
-                        )
+                    if st.markdown(f'<a href="#" style="display:inline-block;margin-top:10px;" onclick="window.dispatchEvent(new CustomEvent(\'expandCoverArt\', {{ detail: {release_id} }})); return false;">Edit Cover Art</a>', unsafe_allow_html=True):
+                        pass
 
                 with cols[1]:
                     st.markdown(f"### {album_title}")
@@ -191,10 +189,10 @@ if search_query:
                 if st.session_state.expanded_cover_id == release_id:
                     with st.expander("Update Cover Art", expanded=True):
                         st.text_input("Enter new cover art URL:", key=f"new_cover_{release_id}")
-                        btn1, btn2 = st.columns(2)
-                        with btn1:
+                        b1, b2 = st.columns([1, 1])
+                        with b1:
                             st.button("Upload custom URL", key=f"upload_{release_id}")
-                        with btn2:
+                        with b2:
                             st.button("Revert to original Cover Art", key=f"revert_{release_id}")
 
                 with st.expander("Click to view tracklist", expanded=False):
