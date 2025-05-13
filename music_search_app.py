@@ -188,7 +188,7 @@ if search_query:
                     st.markdown(f"**Artist:** {album_artist}")
 
                 with st.expander("Click to view tracklist", expanded=False):
-                    tracklist = df[df['release_id'] == release_id][['Artist', 'Track Title', 'CD', 'Track Number']].copy()
+                    tracklist = group[['Artist', 'Track Title', 'CD', 'Track Number']].copy()
                     tracklist = tracklist.rename(columns={
                         'Track Title': 'Song',
                         'CD': 'Disc',
