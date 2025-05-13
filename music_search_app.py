@@ -179,7 +179,7 @@ if search_query:
                     else:
                         st.text("No cover art")
 
-                    if st.button("Edit Cover Art", key=f"edit_{release_id}"):
+                    if st.markdown(f'<a href="#" onclick="window.location.reload();" style="display:inline-block;margin-top:10px;">Edit Cover Art</a>', unsafe_allow_html=True):
                         st.session_state.expanded_cover_id = release_id if st.session_state.expanded_cover_id != release_id else None
 
                 with cols[1]:
@@ -189,6 +189,8 @@ if search_query:
                 if st.session_state.expanded_cover_id == release_id:
                     with st.expander("Update Cover Art", expanded=True):
                         st.text_input("Enter new cover art URL:", key=f"new_cover_{release_id}")
+                        st.button("Upload custom URL", key=f"upload_{release_id}")
+                        st.button("Revert to original Cover Art", key=f"revert_{release_id}")
 
                 with st.expander("Click to view tracklist", expanded=False):
                     tracklist = group[['Artist', 'Track Title', 'CD', 'Track Number']].copy()
