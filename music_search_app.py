@@ -32,12 +32,9 @@ def load_data():
 
         try:
             overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
-            if 'release_id' in overrides.columns and 'cover_url' in overrides.columns:
-                overrides = overrides.drop_duplicates(subset='release_id', keep='last')
-                df = df.merge(overrides, on='release_id', how='left', suffixes=('', '_override'))
-                df['cover_art_final'] = df['cover_url'].combine_first(df['cover_art'])
-            else:
-                df['cover_art_final'] = df['cover_art']
+            overrides = overrides.drop_duplicates(subset='release_id', keep='last')
+            df = df.merge(overrides, on='release_id', how='left', suffixes=('', '_override'))
+            df['cover_art_final'] = df['cover_url'].combine_first(df['cover_art'])
         except FileNotFoundError:
             st.warning("Cover overrides file not found. Proceeding without overrides.")
             df['cover_art_final'] = df['cover_art']
@@ -109,6 +106,28 @@ def upload_to_github(file_path, repo, token, branch, commit_message):
     response = requests.put(api_url, headers=headers, json=data)
     return response
 
+def update_cover_override(release_id, url):
+    try:
+        overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
+    except FileNotFoundError:
+        overrides = pd.DataFrame(columns=['release_id', 'cover_url'])
+
+    overrides = overrides[overrides['release_id'] != release_id]
+    overrides = pd.concat([overrides, pd.DataFrame([{'release_id': release_id, 'cover_url': url}])], ignore_index=True)
+    overrides.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
+    commit_message = f"Updated override for release_id {release_id} ({datetime.utcnow().isoformat()} UTC)"
+    upload_to_github(COVER_OVERRIDES_FILE, GITHUB_REPO, GITHUB_TOKEN, GITHUB_BRANCH, commit_message)
+
+def remove_cover_override(release_id):
+    try:
+        overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
+        overrides = overrides[overrides['release_id'] != release_id]
+        overrides.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
+        commit_message = f"Removed override for release_id {release_id} ({datetime.utcnow().isoformat()} UTC)"
+        upload_to_github(COVER_OVERRIDES_FILE, GITHUB_REPO, GITHUB_TOKEN, GITHUB_BRANCH, commit_message)
+    except FileNotFoundError:
+        pass
+
 st.title('Music Search App')
 
 if 'expanded_cover_id' not in st.session_state:
@@ -163,8 +182,7 @@ if search_query:
                     time.sleep(0.2)
                     cover = fetch_discogs_cover(release_id)
                     if cover:
-                        df.loc[df['release_id'] == release_id, 'cover_url'] = cover
-                        df.to_csv(COVER_OVERRIDES_FILE, index=False)
+                        update_cover_override(release_id, cover)
                     cover_cache[release_id] = cover
                 else:
                     cover = cover_cache[release_id]
@@ -196,18 +214,12 @@ if search_query:
                         with col1:
                             if st.button("Upload custom URL", key=f"upload_{release_id}"):
                                 if new_url:
-                                    df.loc[df['release_id'] == release_id, 'cover_url'] = new_url
-                                    df.to_csv(COVER_OVERRIDES_FILE, index=False)
-                                    commit_message = f"Manual update ({datetime.utcnow().isoformat()} UTC)"
-                                    upload_to_github(COVER_OVERRIDES_FILE, GITHUB_REPO, GITHUB_TOKEN, GITHUB_BRANCH, commit_message)
+                                    update_cover_override(release_id, new_url)
                                     st.success("Cover art updated!")
                                     st.rerun()
                         with col2:
                             if st.button("Revert to original Cover Art", key=f"revert_{release_id}"):
-                                df.loc[df['release_id'] == release_id, 'cover_url'] = None
-                                df.to_csv(COVER_OVERRIDES_FILE, index=False)
-                                commit_message = f"Manual revert ({datetime.utcnow().isoformat()} UTC)"
-                                upload_to_github(COVER_OVERRIDES_FILE, GITHUB_REPO, GITHUB_TOKEN, GITHUB_BRANCH, commit_message)
+                                remove_cover_override(release_id)
                                 st.success("Cover art reverted!")
                                 st.rerun()
 
