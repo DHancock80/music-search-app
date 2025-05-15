@@ -21,10 +21,6 @@ GITHUB_BRANCH = 'main'
 DISCOGS_ICON_WHITE = 'https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_white.png'
 DISCOGS_ICON_BLACK = 'https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_black.png'
 
-# Detect light/dark mode for correct icon
-dark_mode = st.get_option("theme.base") == "dark"
-DISCOGS_LOGO = DISCOGS_ICON_WHITE if dark_mode else DISCOGS_ICON_BLACK
-
 # Track open expander state
 if 'open_expander_id' not in st.session_state:
     st.session_state['open_expander_id'] = None
@@ -200,6 +196,10 @@ if search_query:
             artist = "Various Artists" if group['Artist'].nunique() > 1 else group['Artist'].iloc[0]
             cover_url = first_row.get('cover_art_final') or fetch_discogs_cover(release_id) or PLACEHOLDER_COVER
 
+            # Dynamically check theme and apply correct icon
+            dark_mode = st.get_option("theme.base") == "dark"
+            discogs_logo = DISCOGS_ICON_WHITE if dark_mode else DISCOGS_ICON_BLACK
+
             cols = st.columns([1, 5])
             with cols[0]:
                 st.markdown(f"""
@@ -208,23 +208,22 @@ if search_query:
                     </a>
                 """, unsafe_allow_html=True)
 
-                # Toggle expander on click, ensuring only one open at a time
+                # Close any other expanders before opening new one
                 if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
-                    st.session_state['open_expander_id'] = (
-                        None if st.session_state['open_expander_id'] == release_id else release_id
-                    )
+                    st.session_state['open_expander_id'] = release_id
 
             with cols[1]:
                 st.markdown(f"""
                     <div style="display:flex;justify-content:space-between;align-items:center;">
                         <div style="font-size:20px;font-weight:600;">{title}</div>
                         <a href="https://www.discogs.com/release/{release_id}" target="_blank">
-                            <img src="{DISCOGS_LOGO}" alt="Discogs" width="24" style="margin-left:10px;" />
+                            <img src="{discogs_logo}" alt="Discogs" width="24" style="margin-left:10px;" />
                         </a>
                     </div>
                     <div><strong>Artist:</strong> {artist}</div>
                 """, unsafe_allow_html=True)
 
+            # Show only the selected expander
             if st.session_state['open_expander_id'] == release_id:
                 with st.expander("Update Cover Art", expanded=True):
                     with st.form(f"form_{release_id}"):
