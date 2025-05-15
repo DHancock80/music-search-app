@@ -18,7 +18,6 @@ GITHUB_REPO = 'DHancock80/music-search-app'
 GITHUB_BRANCH = 'main'
 
 @st.cache_data
-
 def load_data():
     try:
         df = pd.read_csv(CSV_FILE, encoding='latin1')
@@ -45,7 +44,6 @@ def load_data():
     return df
 
 def upload_to_github(file_path, repo, token, branch, commit_message):
-    import base64
     api_url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
     headers = {
         "Authorization": f"token {token}",
@@ -135,7 +133,6 @@ if search_query:
     df = load_data()
     results = search(df, search_query, search_type)
 
-    format_filter = st.radio('Format:', ['All', 'Album', 'Single', 'Video'], horizontal=True)
     format_counts = {
         'All': len(results),
         'Album': results['Format'].str.contains("album|compilation|comp", case=False, na=False).sum(),
@@ -143,12 +140,12 @@ if search_query:
         'Video': results['Format'].str.contains("video", case=False, na=False).sum()
     }
 
-    st.markdown("**Results:** " + ", ".join([f"{fmt}: {count}" for fmt, count in format_counts.items()]))
+    format_filter = st.radio('Format:', [f"All ({format_counts['All']})", f"Album ({format_counts['Album']})", f"Single ({format_counts['Single']})", f"Video ({format_counts['Video']})"], horizontal=True)
+    format_clean = format_filter.split()[0]
 
-    if format_filter != 'All':
-        if 'Format' in results.columns:
-            pattern = 'album|compilation|comp' if format_filter == 'Album' else format_filter.lower()
-            results = results[results['Format'].str.lower().str.contains(pattern, na=False)]
+    if format_clean != 'All':
+        pattern = 'album|compilation|comp' if format_clean == 'Album' else format_clean.lower()
+        results = results[results['Format'].str.lower().str.contains(pattern, na=False)]
 
     if results.empty:
         st.info("No results found.")
@@ -169,7 +166,7 @@ if search_query:
                     else:
                         st.text("No cover art")
 
-                    if st.link_button("Edit Cover Art", key=f"editbtn_{release_id}"):
+                    if st.button("Edit Cover Art", key=f"editbtn_{release_id}"):
                         st.session_state.expanded_cover_id = release_id if st.session_state.expanded_cover_id != release_id else None
 
                 with cols[1]:
