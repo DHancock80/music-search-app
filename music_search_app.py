@@ -120,6 +120,7 @@ def update_cover_override(release_id, new_url):
     overrides = pd.concat([overrides, pd.DataFrame([{'release_id': release_id, 'cover_url': new_url}])], ignore_index=True)
     overrides.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
     upload_to_github(COVER_OVERRIDES_FILE, GITHUB_REPO, GITHUB_TOKEN, GITHUB_BRANCH, f"Update cover for {release_id}")
+    st.success("✅ Custom cover art uploaded and synced to GitHub!")
     st.cache_data.clear()
     st.rerun()
 
@@ -130,6 +131,7 @@ def reset_cover_override(release_id):
         overrides = overrides[overrides['release_id'] != release_id]
         overrides.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
         upload_to_github(COVER_OVERRIDES_FILE, GITHUB_REPO, GITHUB_TOKEN, GITHUB_BRANCH, f"Reset cover for {release_id}")
+        st.success("✅ Reverted to original cover art and synced to GitHub!")
         st.cache_data.clear()
         st.rerun()
     except Exception as e:
@@ -190,16 +192,32 @@ if search_query:
                     <div><strong>Artist:</strong> {artist}</div>
                 """, unsafe_allow_html=True)
 
-            with st.expander("Update Cover Art", expanded=st.session_state.get(f"show_expander_{release_id}", False)):
-                with st.form(f"form_{release_id}"):
-                    new_url = st.text_input("Custom cover art URL:", key=f"url_{release_id}")
-                    cols = st.columns(2)
-                    with cols[0]:
-                        if st.form_submit_button("Upload custom URL"):
-                            update_cover_override(release_id, new_url)
-                    with cols[1]:
-                        if st.form_submit_button("Revert to original Cover Art"):
-                            reset_cover_override(release_id)
+            if f'show_expander_{release_id}' not in st.session_state:
+                st.session_state[f'show_expander_{release_id}'] = False
+
+            if st.session_state.get(f'show_expander_{release_id}', False):
+                with st.expander("Update Cover Art", expanded=True):
+                    with st.form(f"form_{release_id}"):
+                        new_url = st.text_input("Custom cover art URL:", key=f"url_{release_id}")
+                        cols = st.columns(2)
+                        with cols[0]:
+                            if st.form_submit_button("Upload custom URL"):
+                                update_cover_override(release_id, new_url)
+                        with cols[1]:
+                            if st.form_submit_button("Revert to original Cover Art"):
+                                reset_cover_override(release_id)
+
+            st.markdown(f"""
+                <script>
+                    window.addEventListener('expandCoverArt', function(e) {{
+                        fetch(window.location.href, {{
+                            method: 'POST',
+                            headers: {{ 'Content-Type': 'application/json' }},
+                            body: JSON.stringify({{ action: 'toggle_expander', release_id: e.detail }})
+                        }}).then(() => window.location.reload());
+                    }});
+                </script>
+            """, unsafe_allow_html=True)
 
             with st.expander("Click to view tracklist"):
                 st.dataframe(group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
