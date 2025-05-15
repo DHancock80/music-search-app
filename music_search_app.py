@@ -5,8 +5,8 @@ import requests
 import time
 import base64
 import shutil
-from datetime import datetime
 import os
+from datetime import datetime
 
 # Constants
 CSV_FILE = 'expanded_discogs_tracklists.csv'
@@ -23,13 +23,12 @@ def load_data():
         df = pd.read_csv(CSV_FILE, encoding='latin1')
         if df.columns[0].startswith("Unnamed"):
             df = df.drop(columns=[df.columns[0]])
-
         if 'cover_art' not in df.columns:
             df['cover_art'] = None
-
         try:
             overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1', on_bad_lines='skip')
-            if 'release_id' not in overrides.columns or 'cover_url' not in overrides.columns:
+            overrides.columns = overrides.columns.str.strip().str.lower()
+            if not {'release_id', 'cover_url'}.issubset(overrides.columns):
                 st.warning("Overrides file missing required columns. Skipping override merge.")
                 df['cover_art_final'] = df['cover_art']
             else:
@@ -39,51 +38,13 @@ def load_data():
         except Exception as e:
             st.warning(f"Could not read cover overrides: {e}")
             df['cover_art_final'] = df['cover_art']
-
     except Exception as e:
         st.error(f"Error loading the CSV file: {e}")
         df = pd.DataFrame()
     return df
 
-def clean_artist_name(artist):
-    if pd.isna(artist):
-        return ''
-    artist = artist.lower()
-    artist = re.sub(r'[\*\(\)\[#]', '', artist)
-    artist = re.sub(r'\s*(feat\.|ft\.|featuring)\s*', ' ', artist)
-    artist = artist.replace('&', ' ').replace(',', ' ')
-    artist = re.sub(r'\s+', ' ', artist).strip()
-    return artist
-
-def search(df, query, search_type):
-    if df.empty:
-        return df
-    query = query.lower().strip()
-    results = df.copy()
-
-    if search_type == 'Song Title':
-        results = results[results['Track Title'].str.lower().str.contains(query, na=False)]
-    elif search_type == 'Artist':
-        results['artist_clean'] = results['Artist'].apply(clean_artist_name)
-        results = results[results['artist_clean'].str.contains(query, na=False)]
-    elif search_type == 'Album':
-        results = results[results['Title'].str.lower().str.contains(query, na=False)]
-
-    return results
-
-def fetch_discogs_cover(release_id):
-    headers = {"Authorization": f"Discogs token={DISCOGS_API_TOKEN}"}
-    try:
-        response = requests.get(f"https://api.discogs.com/releases/{release_id}", headers=headers)
-        if response.status_code == 200:
-            data = response.json()
-            if 'images' in data and len(data['images']) > 0:
-                return data['images'][0]['uri']
-    except Exception as e:
-        print(f"Error fetching release {release_id}: {e}")
-    return None
-
 def upload_to_github(file_path, repo, token, branch, commit_message):
+    import base64
     api_url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
     headers = {
         "Authorization": f"token {token}",
@@ -92,10 +53,8 @@ def upload_to_github(file_path, repo, token, branch, commit_message):
     with open(file_path, "rb") as f:
         content = f.read()
     content_b64 = base64.b64encode(content).decode()
-
     get_resp = requests.get(api_url, headers=headers, params={"ref": branch})
     sha = get_resp.json()['sha'] if get_resp.status_code == 200 else None
-
     data = {
         "message": commit_message,
         "content": content_b64,
@@ -103,49 +62,66 @@ def upload_to_github(file_path, repo, token, branch, commit_message):
     }
     if sha:
         data["sha"] = sha
-
     response = requests.put(api_url, headers=headers, json=data)
     return response
 
-def backup_override_file():
-    if not os.path.exists(BACKUP_FOLDER):
-        os.makedirs(BACKUP_FOLDER)
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    backup_filename = os.path.join(BACKUP_FOLDER, f"cover_overrides_backup_{timestamp}.csv")
-    shutil.copy(COVER_OVERRIDES_FILE, backup_filename)
-    upload_to_github(
-        backup_filename,
-        GITHUB_REPO,
-        GITHUB_TOKEN,
-        GITHUB_BRANCH,
-        f"Backup: {backup_filename} ({datetime.utcnow().isoformat()} UTC)"
-    )
+def clean_artist_name(artist):
+    if pd.isna(artist): return ''
+    artist = artist.lower()
+    artist = re.sub(r'[\*\(\)\[#]', '', artist)
+    artist = re.sub(r'\s*(feat\.|ft\.|featuring)\s*', ' ', artist)
+    artist = artist.replace('&', ' ').replace(',', ' ')
+    return re.sub(r'\s+', ' ', artist).strip()
 
-def update_cover_override(release_id, url):
+def search(df, query, search_type):
+    query = query.lower().strip()
+    if search_type == 'Song Title':
+        return df[df['Track Title'].str.lower().str.contains(query, na=False)]
+    elif search_type == 'Artist':
+        df['artist_clean'] = df['Artist'].apply(clean_artist_name)
+        return df[df['artist_clean'].str.contains(query, na=False)]
+    elif search_type == 'Album':
+        return df[df['Title'].str.lower().str.contains(query, na=False)]
+    return df
+
+def update_cover_override(release_id, new_url):
     try:
-        overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1', on_bad_lines='skip')
-    except Exception:
+        if not os.path.exists(BACKUP_FOLDER):
+            os.makedirs(BACKUP_FOLDER)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        backup_file = os.path.join(BACKUP_FOLDER, f"cover_overrides_backup_{timestamp}.csv")
+        shutil.copy(COVER_OVERRIDES_FILE, backup_file)
+        backups = sorted(os.listdir(BACKUP_FOLDER))
+        if len(backups) > 10:
+            os.remove(os.path.join(BACKUP_FOLDER, backups[0]))
+    except Exception as e:
+        st.error(f"Backup failed: {e}")
+
+    try:
+        overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
+        overrides.columns = overrides.columns.str.strip().str.lower()
+    except:
         overrides = pd.DataFrame(columns=['release_id', 'cover_url'])
 
     overrides = overrides[overrides['release_id'] != release_id]
-    overrides = pd.concat([overrides, pd.DataFrame([{'release_id': release_id, 'cover_url': url}])], ignore_index=True)
+    overrides = pd.concat([overrides, pd.DataFrame([{'release_id': release_id, 'cover_url': new_url}])], ignore_index=True)
     overrides.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
-    backup_override_file()
-    commit_message = f"Updated override for release_id {release_id} ({datetime.utcnow().isoformat()} UTC)"
-    upload_to_github(COVER_OVERRIDES_FILE, GITHUB_REPO, GITHUB_TOKEN, GITHUB_BRANCH, commit_message)
+    upload_to_github(COVER_OVERRIDES_FILE, GITHUB_REPO, GITHUB_TOKEN, GITHUB_BRANCH, f"Update cover for {release_id}")
+    st.cache_data.clear()
+    st.rerun()
 
-def remove_cover_override(release_id):
+def reset_cover_override(release_id):
     try:
-        overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1', on_bad_lines='skip')
+        overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
+        overrides.columns = overrides.columns.str.strip().str.lower()
         overrides = overrides[overrides['release_id'] != release_id]
         overrides.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
-        backup_override_file()
-        commit_message = f"Removed override for release_id {release_id} ({datetime.utcnow().isoformat()} UTC)"
-        upload_to_github(COVER_OVERRIDES_FILE, GITHUB_REPO, GITHUB_TOKEN, GITHUB_BRANCH, commit_message)
-    except FileNotFoundError:
-        pass
+        upload_to_github(COVER_OVERRIDES_FILE, GITHUB_REPO, GITHUB_TOKEN, GITHUB_BRANCH, f"Reset cover for {release_id}")
+        st.cache_data.clear()
+        st.rerun()
+    except Exception as e:
+        st.error(f"Reset failed: {e}")
 
-# App UI
 st.title('Music Search App')
 
 if 'expanded_cover_id' not in st.session_state:
@@ -153,62 +129,66 @@ if 'expanded_cover_id' not in st.session_state:
 
 search_query = st.text_input('Enter your search:', '')
 search_type = st.radio('Search by:', ['Song Title', 'Artist', 'Album'], horizontal=True)
+format_filter = st.radio('Format:', ['All', 'Album', 'Single', 'Video'], horizontal=True)
 
+df = load_data()
 if search_query:
-    df = load_data()
     results = search(df, search_query, search_type)
-    unique_results = results.drop_duplicates(subset='release_id')
 
-    if unique_results.empty:
+    format_counts = {
+        'All': len(results),
+        'Album': results['Format'].str.contains("album|compilation|comp", case=False, na=False).sum(),
+        'Single': results['Format'].str.contains("single", case=False, na=False).sum(),
+        'Video': results['Format'].str.contains("video", case=False, na=False).sum()
+    }
+
+    st.markdown("**Results:** " + ", ".join([f"{fmt}: {count}" for fmt, count in format_counts.items()]))
+
+    if format_filter != 'All':
+        if 'Format' in results.columns:
+            pattern = 'album|compilation|comp' if format_filter == 'Album' else format_filter.lower()
+            results = results[results['Format'].str.lower().str.contains(pattern, na=False)]
+
+    if results.empty:
         st.info("No results found.")
     else:
-        for release_id, group in results.groupby('release_id'):
+        grouped = results.groupby('release_id')
+        for release_id, group in grouped:
             first_row = group.iloc[0]
             title = first_row['Title']
-            artist = first_row['Artist']
+            artists = group['Artist'].dropna().unique()
+            display_artist = "Various Artists" if len(artists) > 1 else artists[0] if artists.size > 0 else "Unknown"
             cover_url = first_row.get('cover_art_final')
 
-            # Attempt to fetch from Discogs if missing
-            if pd.isna(cover_url) or cover_url == '':
-                cover_url = fetch_discogs_cover(release_id)
-                if cover_url:
-                    update_cover_override(release_id, cover_url)
-
             with st.container():
-                cols = st.columns([1, 4])
+                cols = st.columns([1, 5])
                 with cols[0]:
                     if cover_url:
                         st.image(cover_url, width=120)
                     else:
-                        st.markdown("No cover art")
+                        st.text("No cover art")
+
+                    if st.button("Edit Cover Art", key=f"editbtn_{release_id}"):
+                        st.session_state.expanded_cover_id = release_id if st.session_state.expanded_cover_id != release_id else None
 
                 with cols[1]:
                     st.markdown(f"### {title}")
-                    st.markdown(f"**Artist:** {artist}")
-                    if st.button("Edit Cover Art", key=f"edit_{release_id}"):
-                        st.session_state.expanded_cover_id = release_id if st.session_state.expanded_cover_id != release_id else None
+                    st.markdown(f"**Artist:** {display_artist}")
 
                 if st.session_state.expanded_cover_id == release_id:
                     with st.expander("Update Cover Art", expanded=True):
-                        new_url = st.text_input("Enter new cover art URL:", key=f"url_{release_id}")
-                        cols2 = st.columns([1, 1])
-                        with cols2[0]:
-                            if st.button("Upload custom URL", key=f"upload_{release_id}"):
-                                update_cover_override(release_id, new_url)
-                                st.success("Custom URL uploaded and synced to GitHub!")
-                                st.rerun()
-                        with cols2[1]:
-                            if st.button("Revert to original Cover Art", key=f"revert_{release_id}"):
-                                remove_cover_override(release_id)
-                                st.success("Cover override removed and synced to GitHub!")
-                                st.rerun()
+                        new_url = st.text_input("Custom cover art URL:", key=f"newurl_{release_id}")
+                        subcol, resetcol = st.columns(2)
+                        with subcol:
+                            if st.button("Upload custom URL", key=f"submiturl_{release_id}"):
+                                if new_url:
+                                    update_cover_override(release_id, new_url)
+                        with resetcol:
+                            if st.button("Revert to original Cover Art", key=f"reseturl_{release_id}"):
+                                reset_cover_override(release_id)
 
                 with st.expander("Click to view tracklist"):
-                    tracklist = group[[
-                        'Track Title', 'Artist', 'CD', 'Track Number', 'Format'
-                    ]].rename(columns={
-                        'Track Title': 'Song',
-                        'CD': 'Disc',
-                        'Track Number': 'Track'
-                    })
+                    tracklist = group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
+                        'Track Title': 'Song', 'CD': 'Disc', 'Track Number': 'Track'
+                    }).reset_index(drop=True)
                     st.dataframe(tracklist, use_container_width=True, hide_index=True)
