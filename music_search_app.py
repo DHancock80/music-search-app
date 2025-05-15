@@ -21,7 +21,11 @@ GITHUB_BRANCH = 'main'
 DISCOGS_ICON_WHITE = 'https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_white.png'
 DISCOGS_ICON_BLACK = 'https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_black.png'
 
-# Session state for expander toggle
+# Detect light/dark mode for correct icon
+dark_mode = st.get_option("theme.base") == "dark"
+DISCOGS_LOGO = DISCOGS_ICON_WHITE if dark_mode else DISCOGS_ICON_BLACK
+
+# Track open expander state
 if 'open_expander_id' not in st.session_state:
     st.session_state['open_expander_id'] = None
 
@@ -172,24 +176,21 @@ if search_query:
     if results.empty:
         st.info("No results found.")
     else:
-        dark_mode = st.get_option("theme.base") == "dark"
-        discogs_logo = DISCOGS_ICON_WHITE if dark_mode else DISCOGS_ICON_BLACK
-
-        # Style button as text link (responsive to dark/light mode)
+        # Link-style button
         st.markdown("""
             <style>
-                div[data-testid="stButton"] > button {
-                    background: none;
-                    border: none;
-                    padding: 0;
-                    font-size: 14px;
-                    text-decoration: underline;
-                    color: var(--text-color);
-                    cursor: pointer;
-                }
-                div[data-testid="stButton"] > button:hover {
-                    color: var(--primary-color);
-                }
+            div[data-testid="stButton"] > button {
+                background: none;
+                border: none;
+                padding: 0;
+                font-size: 14px;
+                text-decoration: underline;
+                color: var(--text-color);
+                cursor: pointer;
+            }
+            div[data-testid="stButton"] > button:hover {
+                color: var(--primary-color);
+            }
             </style>
         """, unsafe_allow_html=True)
 
@@ -207,18 +208,18 @@ if search_query:
                     </a>
                 """, unsafe_allow_html=True)
 
+                # Toggle expander on click, ensuring only one open at a time
                 if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
-                    if st.session_state['open_expander_id'] == release_id:
-                        st.session_state['open_expander_id'] = None
-                    else:
-                        st.session_state['open_expander_id'] = release_id
+                    st.session_state['open_expander_id'] = (
+                        None if st.session_state['open_expander_id'] == release_id else release_id
+                    )
 
             with cols[1]:
                 st.markdown(f"""
                     <div style="display:flex;justify-content:space-between;align-items:center;">
                         <div style="font-size:20px;font-weight:600;">{title}</div>
                         <a href="https://www.discogs.com/release/{release_id}" target="_blank">
-                            <img src="{discogs_logo}" alt="Discogs" width="24" style="margin-left:10px;" />
+                            <img src="{DISCOGS_LOGO}" alt="Discogs" width="24" style="margin-left:10px;" />
                         </a>
                     </div>
                     <div><strong>Artist:</strong> {artist}</div>
