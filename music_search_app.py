@@ -7,6 +7,7 @@ import base64
 import shutil
 import os
 from datetime import datetime
+import json
 
 # Constants
 CSV_FILE = 'expanded_discogs_tracklists.csv'
@@ -17,7 +18,17 @@ DISCOGS_API_TOKEN = st.secrets["DISCOGS_API_TOKEN"]
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 GITHUB_REPO = 'DHancock80/music-search-app'
 GITHUB_BRANCH = 'main'
-DISCOGS_ICON_PNG = 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fb/Discogs_Logo.png/120px-Discogs_Logo.png'
+DISCOGS_ICON_WHITE = 'https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_white.png'
+DISCOGS_ICON_BLACK = 'https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_black.png'
+
+if st._is_running_with_streamlit:
+    try:
+        event_data = st.experimental_get_query_params()
+        if 'expand' in event_data:
+            rid = int(event_data['expand'][0])
+            st.session_state[f'show_expander_{rid}'] = True
+    except:
+        pass
 
 @st.cache_data
 def load_data():
@@ -137,6 +148,8 @@ def reset_cover_override(release_id):
     except Exception as e:
         st.error(f"Reset failed: {e}")
 
+# --------------------------- MAIN UI ---------------------------
+
 st.title('Music Search App')
 
 search_query = st.text_input('Enter your search:', '')
@@ -164,6 +177,9 @@ if search_query:
     if results.empty:
         st.info("No results found.")
     else:
+        dark_mode = st.get_option("theme.base") == "dark"
+        discogs_logo = DISCOGS_ICON_WHITE if dark_mode else DISCOGS_ICON_BLACK
+
         for release_id, group in results.groupby('release_id'):
             first_row = group.iloc[0]
             title = first_row['Title']
@@ -173,27 +189,24 @@ if search_query:
             cols = st.columns([1, 5])
             with cols[0]:
                 st.markdown(f"""
-                    <a href="{cover_url}" target="_blank">
-                        <img src="{cover_url}" width="120" style="border-radius:8px;" />
+                    <a href=\"{cover_url}\" target=\"_blank\">
+                        <img src=\"{cover_url}\" width=\"120\" style=\"border-radius:8px;\" />
                     </a>
-                    <div style="margin-top:4px;font-size:14px;">
-                        <a href="#" onclick="window.dispatchEvent(new CustomEvent('expandCoverArt', {{ detail: {release_id} }})); return false;" style="color:#1f77b4;text-decoration:underline;">Edit Cover Art</a>
+                    <div style=\"margin-top:4px;font-size:14px;\">
+                        <a href=\"?expand={release_id}\" style=\"color:#1f77b4;text-decoration:underline;\">Edit Cover Art</a>
                     </div>
                 """, unsafe_allow_html=True)
 
             with cols[1]:
                 st.markdown(f"""
-                    <div style="display:flex;justify-content:space-between;align-items:center;">
-                        <div style="font-size:20px;font-weight:600;">{title}</div>
-                        <a href="https://www.discogs.com/release/{release_id}" target="_blank">
-                            <img src="{DISCOGS_ICON_PNG}" alt="Discogs" width="20" style="margin-left:10px;" />
+                    <div style=\"display:flex;justify-content:space-between;align-items:center;\">
+                        <div style=\"font-size:20px;font-weight:600;\">{title}</div>
+                        <a href=\"https://www.discogs.com/release/{release_id}\" target=\"_blank\">
+                            <img src=\"{discogs_logo}\" alt=\"Discogs\" width=\"24\" style=\"margin-left:10px;\" />
                         </a>
                     </div>
                     <div><strong>Artist:</strong> {artist}</div>
                 """, unsafe_allow_html=True)
-
-            if f'show_expander_{release_id}' not in st.session_state:
-                st.session_state[f'show_expander_{release_id}'] = False
 
             if st.session_state.get(f'show_expander_{release_id}', False):
                 with st.expander("Update Cover Art", expanded=True):
@@ -206,18 +219,6 @@ if search_query:
                         with cols[1]:
                             if st.form_submit_button("Revert to original Cover Art"):
                                 reset_cover_override(release_id)
-
-            st.markdown(f"""
-                <script>
-                    window.addEventListener('expandCoverArt', function(e) {{
-                        fetch(window.location.href, {{
-                            method: 'POST',
-                            headers: {{ 'Content-Type': 'application/json' }},
-                            body: JSON.stringify({{ action: 'toggle_expander', release_id: e.detail }})
-                        }}).then(() => window.location.reload());
-                    }});
-                </script>
-            """, unsafe_allow_html=True)
 
             with st.expander("Click to view tracklist"):
                 st.dataframe(group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
