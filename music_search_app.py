@@ -17,6 +17,7 @@ DISCOGS_API_TOKEN = st.secrets["DISCOGS_API_TOKEN"]
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 GITHUB_REPO = 'DHancock80/music-search-app'
 GITHUB_BRANCH = 'main'
+DISCOGS_ICON = 'https://upload.wikimedia.org/wikipedia/commons/1/1e/Discogs_logo_black.svg'
 
 @st.cache_data
 def load_data():
@@ -181,25 +182,12 @@ if search_query:
                 cols = st.columns([1, 5])
                 with cols[0]:
                     st.markdown(f'<a href="{cover_url}" target="_blank"><img src="{cover_url}" width="120"></a>', unsafe_allow_html=True)
-                    edit_link = f'<a href="#" onclick="window.dispatchEvent(new CustomEvent(\'expandCoverArt\', {{ detail: {release_id} }})); return false;" style="display:inline-block;margin-top:10px;color:#00f;text-decoration:underline;font-size:14px;">Edit Cover Art</a>'
-                    st.markdown(edit_link, unsafe_allow_html=True)
-                    st.components.v1.html("""
-                    <script>
-                    document.addEventListener('expandCoverArt', function(e) {
-                        const releaseId = e.detail;
-                        fetch(window.location.href, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ 'expanded_cover_id': releaseId })
-                        }).then(() => window.location.reload());
-                    });
-                    </script>
-                    """, height=0)
+                    if st.button("Edit Cover Art", key=f"edit_{release_id}"):
+                        st.session_state.expanded_cover_id = release_id
+                        st.rerun()
 
                 with cols[1]:
-                    st.markdown(f"### {title} <a href='https://www.discogs.com/release/{release_id}' target='_blank' style='float:right; font-size:14px;'><img src='https://upload.wikimedia.org/wikipedia/commons/thumb/1/1e/Discogs_logo_black.svg/512px-Discogs_logo_black.svg.png' alt='Discogs' width='16'></a>", unsafe_allow_html=True)
+                    st.markdown(f"### {title} <a href='https://www.discogs.com/release/{release_id}' target='_blank' style='float:right;'><img src='{DISCOGS_ICON}' alt='Discogs' width='18'></a>", unsafe_allow_html=True)
                     st.markdown(f"**Artist:** {display_artist}")
 
                 if st.session_state.expanded_cover_id == release_id:
