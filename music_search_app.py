@@ -21,14 +21,15 @@ GITHUB_BRANCH = 'main'
 DISCOGS_ICON_WHITE = 'https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_white.png'
 DISCOGS_ICON_BLACK = 'https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_black.png'
 
-# Updated query param retrieval
-try:
-    event_data = st.query_params
-    if 'expand' in event_data:
-        rid = int(event_data['expand'][0])
-        st.session_state[f'show_expander_{rid}'] = True
-except:
-    pass
+# Setup expander toggle
+if 'open_expander_id' not in st.session_state:
+    st.session_state['open_expander_id'] = None
+
+def toggle_expander(rid):
+    if st.session_state['open_expander_id'] == rid:
+        st.session_state['open_expander_id'] = None  # close it
+    else:
+        st.session_state['open_expander_id'] = rid  # open it
 
 @st.cache_data
 def load_data():
@@ -189,26 +190,25 @@ if search_query:
             cols = st.columns([1, 5])
             with cols[0]:
                 st.markdown(f"""
-                    <a href=\"{cover_url}\" target=\"_blank\">
-                        <img src=\"{cover_url}\" width=\"120\" style=\"border-radius:8px;\" />
+                    <a href="{cover_url}" target="_blank">
+                        <img src="{cover_url}" width="120" style="border-radius:8px;" />
                     </a>
-                    <div style=\"margin-top:4px;font-size:14px;\">
-                        <a href=\"?expand={release_id}\" style=\"color:#1f77b4;text-decoration:underline;\">Edit Cover Art</a>
-                    </div>
                 """, unsafe_allow_html=True)
+                if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
+                    toggle_expander(release_id)
 
             with cols[1]:
                 st.markdown(f"""
-                    <div style=\"display:flex;justify-content:space-between;align-items:center;\">
-                        <div style=\"font-size:20px;font-weight:600;\">{title}</div>
-                        <a href=\"https://www.discogs.com/release/{release_id}\" target=\"_blank\">
-                            <img src=\"{discogs_logo}\" alt=\"Discogs\" width=\"24\" style=\"margin-left:10px;\" />
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <div style="font-size:20px;font-weight:600;">{title}</div>
+                        <a href="https://www.discogs.com/release/{release_id}" target="_blank">
+                            <img src="{discogs_logo}" alt="Discogs" width="24" style="margin-left:10px;" />
                         </a>
                     </div>
                     <div><strong>Artist:</strong> {artist}</div>
                 """, unsafe_allow_html=True)
 
-            if st.session_state.get(f'show_expander_{release_id}', False):
+            if st.session_state['open_expander_id'] == release_id:
                 with st.expander("Update Cover Art", expanded=True):
                     with st.form(f"form_{release_id}"):
                         new_url = st.text_input("Custom cover art URL:", key=f"url_{release_id}")
