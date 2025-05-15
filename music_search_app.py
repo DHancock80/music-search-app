@@ -21,14 +21,13 @@ GITHUB_BRANCH = 'main'
 DISCOGS_ICON_WHITE = 'https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_white.png'
 DISCOGS_ICON_BLACK = 'https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_black.png'
 
-if st._is_running_with_streamlit:
-    try:
-        event_data = st.experimental_get_query_params()
-        if 'expand' in event_data:
-            rid = int(event_data['expand'][0])
-            st.session_state[f'show_expander_{rid}'] = True
-    except:
-        pass
+try:
+    event_data = st.experimental_get_query_params()
+    if 'expand' in event_data:
+        rid = int(event_data['expand'][0])
+        st.session_state[f'show_expander_{rid}'] = True
+except:
+    pass
 
 @st.cache_data
 def load_data():
