@@ -18,6 +18,7 @@ GITHUB_REPO = 'DHancock80/music-search-app'
 GITHUB_BRANCH = 'main'
 
 @st.cache_data
+
 def load_data():
     try:
         df = pd.read_csv(CSV_FILE, encoding='latin1')
@@ -129,12 +130,12 @@ if 'expanded_cover_id' not in st.session_state:
 
 search_query = st.text_input('Enter your search:', '')
 search_type = st.radio('Search by:', ['Song Title', 'Artist', 'Album'], horizontal=True)
-format_filter = st.radio('Format:', ['All', 'Album', 'Single', 'Video'], horizontal=True)
 
-df = load_data()
 if search_query:
+    df = load_data()
     results = search(df, search_query, search_type)
 
+    format_filter = st.radio('Format:', ['All', 'Album', 'Single', 'Video'], horizontal=True)
     format_counts = {
         'All': len(results),
         'Album': results['Format'].str.contains("album|compilation|comp", case=False, na=False).sum(),
@@ -164,11 +165,11 @@ if search_query:
                 cols = st.columns([1, 5])
                 with cols[0]:
                     if cover_url:
-                        st.image(cover_url, width=120)
+                        st.markdown(f'<a href="{cover_url}" target="_blank"><img src="{cover_url}" width="120"></a>', unsafe_allow_html=True)
                     else:
                         st.text("No cover art")
 
-                    if st.button("Edit Cover Art", key=f"editbtn_{release_id}"):
+                    if st.link_button("Edit Cover Art", key=f"editbtn_{release_id}"):
                         st.session_state.expanded_cover_id = release_id if st.session_state.expanded_cover_id != release_id else None
 
                 with cols[1]:
@@ -178,7 +179,7 @@ if search_query:
                 if st.session_state.expanded_cover_id == release_id:
                     with st.expander("Update Cover Art", expanded=True):
                         new_url = st.text_input("Custom cover art URL:", key=f"newurl_{release_id}")
-                        subcol, resetcol = st.columns(2)
+                        subcol, resetcol = st.columns([1, 1])
                         with subcol:
                             if st.button("Upload custom URL", key=f"submiturl_{release_id}"):
                                 if new_url:
@@ -192,3 +193,5 @@ if search_query:
                         'Track Title': 'Song', 'CD': 'Disc', 'Track Number': 'Track'
                     }).reset_index(drop=True)
                     st.dataframe(tracklist, use_container_width=True, hide_index=True)
+else:
+    st.caption("Please enter a search query above.")
