@@ -17,7 +17,7 @@ DISCOGS_API_TOKEN = st.secrets["DISCOGS_API_TOKEN"]
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 GITHUB_REPO = 'DHancock80/music-search-app'
 GITHUB_BRANCH = 'main'
-DISCOGS_ICON = 'https://upload.wikimedia.org/wikipedia/commons/1/1e/Discogs_logo_black.svg'
+DISCOGS_ICON_PNG = 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fb/Discogs_Logo.png/200px-Discogs_Logo.png'
 
 @st.cache_data
 def load_data():
@@ -137,9 +137,6 @@ def reset_cover_override(release_id):
 
 st.title('Music Search App')
 
-if 'expanded_cover_id' not in st.session_state:
-    st.session_state.expanded_cover_id = None
-
 search_query = st.text_input('Enter your search:', '')
 search_type = st.radio('Search by:', ['Song Title', 'Artist', 'Album'], horizontal=True)
 
@@ -165,74 +162,52 @@ if search_query:
     if results.empty:
         st.info("No results found.")
     else:
-        grouped = results.groupby('release_id')
-        for release_id, group in grouped:
+        for release_id, group in results.groupby('release_id'):
             first_row = group.iloc[0]
             title = first_row['Title']
-            artists = group['Artist'].dropna().unique()
-            display_artist = "Various Artists" if len(artists) > 1 else artists[0] if artists.size > 0 else "Unknown"
-            cover_url = first_row.get('cover_art_final')
+            artist = "Various Artists" if group['Artist'].nunique() > 1 else group['Artist'].iloc[0]
+            cover_url = first_row.get('cover_art_final') or fetch_discogs_cover(release_id) or PLACEHOLDER_COVER
 
-            if not cover_url:
-                cover_url = fetch_discogs_cover(release_id) or PLACEHOLDER_COVER
-                if cover_url and cover_url != PLACEHOLDER_COVER:
-                    update_cover_override(release_id, cover_url)
+            cols = st.columns([1, 5])
+            with cols[0]:
+                st.markdown(f"""
+                    <a href="{cover_url}" target="_blank">
+                        <img src="{cover_url}" width="120" style="border-radius:8px;" />
+                    </a>
+                    <div style="margin-top:4px;">
+                        <form action="" method="post">
+                            <button name="edit_{release_id}" type="submit" style="all:unset;color:#1f77b4;text-decoration:underline;cursor:pointer;">Edit Cover Art</button>
+                        </form>
+                """, unsafe_allow_html=True)
 
-            with st.container():
-                cols = st.columns([1, 5])
-                with cols[0]:
-                    st.markdown(f'''
-                        <a href="{cover_url}" target="_blank">
-                            <img src="{cover_url}" width="120" style="border-radius:8px;" />
+            with cols[1]:
+                st.markdown(f"""
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <div style="font-size:20px;font-weight:600;">{title}</div>
+                        <a href="https://www.discogs.com/release/{release_id}" target="_blank">
+                            <img src="{DISCOGS_ICON_PNG}" alt="Discogs" width="20" />
                         </a>
-                        <div style="margin-top:4px;">
-                            <a href="#" onclick="window.dispatchEvent(new CustomEvent('expandCoverArt', {{ detail: {release_id} }})); return false;"
-                               style="font-size:13px; color:#1f77b4; text-decoration:underline;">
-                                Edit Cover Art
-                            </a>
-                        </div>
-                    ''', unsafe_allow_html=True)
+                    </div>
+                    <div><strong>Artist:</strong> {artist}</div>
+                """, unsafe_allow_html=True)
 
-                with cols[1]:
-                    st.markdown(f'''
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <div style="font-size:20px; font-weight:600;">{title}</div>
-                            <a href="https://www.discogs.com/release/{release_id}" target="_blank">
-                                <img src="{DISCOGS_ICON}" alt="Discogs" width="20" style="margin-left:10px;" />
-                            </a>
-                        </div>
-                        <div style="margin-bottom:4px;"><strong>Artist:</strong> {display_artist}</div>
-                    ''', unsafe_allow_html=True)
+            if st.form_submit_button(f"edit_{release_id}"):
+                st.session_state[f"show_expander_{release_id}"] = True
 
-                if st.session_state.expanded_cover_id == release_id:
-                    with st.expander("Update Cover Art", expanded=True):
-                        new_url = st.text_input("Custom cover art URL:", key=f"newurl_{release_id}")
-                        subcol, resetcol = st.columns([1, 1])
-                        with subcol:
-                            if st.button("Upload custom URL", key=f"submiturl_{release_id}"):
-                                if new_url:
-                                    update_cover_override(release_id, new_url)
-                        with resetcol:
-                            if st.button("Revert to original Cover Art", key=f"reseturl_{release_id}"):
-                                reset_cover_override(release_id)
+            if st.session_state.get(f"show_expander_{release_id}"):
+                with st.expander("Update Cover Art", expanded=True):
+                    new_url = st.text_input("Custom cover art URL:", key=f"url_{release_id}")
+                    cols = st.columns(2)
+                    with cols[0]:
+                        if st.button("Upload custom URL", key=f"up_{release_id}"):
+                            update_cover_override(release_id, new_url)
+                    with cols[1]:
+                        if st.button("Revert to original Cover Art", key=f"res_{release_id}"):
+                            reset_cover_override(release_id)
 
-                with st.expander("Click to view tracklist"):
-                    tracklist = group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
-                        'Track Title': 'Song', 'CD': 'Disc', 'Track Number': 'Track'
-                    }).reset_index(drop=True)
-                    st.dataframe(tracklist, use_container_width=True, hide_index=True)
-
-        st.markdown("""
-            <script>
-            window.addEventListener("expandCoverArt", (e) => {
-                const id = e.detail;
-                fetch("/_stcore/stream", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ "setSessionState": { "expanded_cover_id": id } })
-                }).then(() => location.reload());
-            });
-            </script>
-        """, unsafe_allow_html=True)
+            with st.expander("Click to view tracklist"):
+                st.dataframe(group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
+                    'Track Title': 'Song', 'CD': 'Disc', 'Track Number': 'Track'
+                }).reset_index(drop=True), use_container_width=True, hide_index=True)
 else:
     st.caption("Please enter a search query above.")
