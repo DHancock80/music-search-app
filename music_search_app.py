@@ -21,7 +21,6 @@ GITHUB_BRANCH = 'main'
 DISCOGS_ICON_WHITE = 'https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_white.png'
 DISCOGS_ICON_BLACK = 'https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_black.png'
 
-# Track open expander state
 if 'open_expander_id' not in st.session_state:
     st.session_state['open_expander_id'] = None
 
@@ -172,7 +171,6 @@ if search_query:
     if results.empty:
         st.info("No results found.")
     else:
-        # Link-style button
         st.markdown("""
             <style>
             div[data-testid="stButton"] > button {
@@ -196,7 +194,6 @@ if search_query:
             artist = "Various Artists" if group['Artist'].nunique() > 1 else group['Artist'].iloc[0]
             cover_url = first_row.get('cover_art_final') or fetch_discogs_cover(release_id) or PLACEHOLDER_COVER
 
-            # Dynamically check theme and apply correct icon
             dark_mode = st.get_option("theme.base") == "dark"
             discogs_logo = DISCOGS_ICON_WHITE if dark_mode else DISCOGS_ICON_BLACK
 
@@ -208,7 +205,6 @@ if search_query:
                     </a>
                 """, unsafe_allow_html=True)
 
-                # Close any other expanders before opening new one
                 if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
                     st.session_state['open_expander_id'] = release_id
 
@@ -223,8 +219,8 @@ if search_query:
                     <div><strong>Artist:</strong> {artist}</div>
                 """, unsafe_allow_html=True)
 
-            # Show only the selected expander
-            if st.session_state['open_expander_id'] == release_id:
+            # Expander: ensure only one open at a time
+            if st.session_state.get('open_expander_id') == release_id:
                 with st.expander("Update Cover Art", expanded=True):
                     with st.form(f"form_{release_id}"):
                         new_url = st.text_input("Custom cover art URL:", key=f"url_{release_id}")
@@ -235,6 +231,8 @@ if search_query:
                         with cols[1]:
                             if st.form_submit_button("Revert to original Cover Art"):
                                 reset_cover_override(release_id)
+            else:
+                st.session_state[f"expander_{release_id}"] = False
 
             with st.expander("Click to view tracklist"):
                 st.dataframe(group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
