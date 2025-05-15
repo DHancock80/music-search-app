@@ -181,13 +181,11 @@ if search_query:
                 cols = st.columns([1, 5])
                 with cols[0]:
                     st.markdown(f'<a href="{cover_url}" target="_blank"><img src="{cover_url}" width="120"></a>', unsafe_allow_html=True)
-                    edit_link = f'<a href="#" style="display:inline-block;margin-top:10px;color:#00f;text-decoration:underline;font-size:14px;" onclick="window.dispatchEvent(new CustomEvent(\"expandCoverArt\", {{ detail: {release_id} }})); return false;">Edit Cover Art</a>'
-                    st.markdown(edit_link, unsafe_allow_html=True)
-                    if st.button("Edit", key=f"editbtn_{release_id}"):
+                    if st.link_button("Edit Cover Art", key=f"editbtn_{release_id}"):
                         st.session_state.expanded_cover_id = release_id if st.session_state.expanded_cover_id != release_id else None
 
                 with cols[1]:
-                    st.markdown(f"### {title} <a href='https://www.discogs.com/release/{release_id}' target='_blank' style='float:right; font-size:14px;'>🔗 View on Discogs</a>", unsafe_allow_html=True)
+                    st.markdown(f"### {title} <a href='https://www.discogs.com/release/{release_id}' target='_blank' style='float:right; font-size:14px;'><img src='https://upload.wikimedia.org/wikipedia/commons/thumb/1/1e/Discogs_logo_black.svg/512px-Discogs_logo_black.svg.png' alt='Discogs' width='16'></a>", unsafe_allow_html=True)
                     st.markdown(f"**Artist:** {display_artist}")
 
                 if st.session_state.expanded_cover_id == release_id:
