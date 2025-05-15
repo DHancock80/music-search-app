@@ -21,15 +21,9 @@ GITHUB_BRANCH = 'main'
 DISCOGS_ICON_WHITE = 'https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_white.png'
 DISCOGS_ICON_BLACK = 'https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_black.png'
 
-# Setup expander toggle
+# Session state for expander toggle
 if 'open_expander_id' not in st.session_state:
     st.session_state['open_expander_id'] = None
-
-def toggle_expander(rid):
-    if st.session_state['open_expander_id'] == rid:
-        st.session_state['open_expander_id'] = None
-    else:
-        st.session_state['open_expander_id'] = rid
 
 @st.cache_data
 def load_data():
@@ -193,20 +187,27 @@ if search_query:
                     <a href="{cover_url}" target="_blank">
                         <img src="{cover_url}" width="120" style="border-radius:8px;" />
                     </a>
-                    <div style="margin-top:4px;font-size:14px;">
-                        <a href="#" onclick="fetch('/?release_id={release_id}').then(() => window.location.reload());" style="color:#1f77b4;text-decoration:underline;">
-                            <span onclick="window.parent.postMessage({{type:'streamlit:setComponentValue', key:'toggle_{release_id}'}}, '*');">Edit Cover Art</span>
-                        </a>
-                    </div>
                 """, unsafe_allow_html=True)
-                if st.session_state.get(f"toggle_{release_id}") is None:
-                    st.session_state[f"toggle_{release_id}"] = False
 
-                if st.session_state[f"toggle_{release_id}"]:
-                    st.session_state['open_expander_id'] = release_id
-                else:
+                # Show "Edit Cover Art" as link that triggers a hidden button
+                link_key = f"edit_link_{release_id}"
+                button_key = f"edit_btn_{release_id}"
+                st.markdown(
+                    f"""
+                    <a href="javascript:document.querySelector('[data-testid={button_key}]')?.click();"
+                    style="color:#1f77b4;text-decoration:underline;display:inline-block;margin-top:4px;">
+                        Edit Cover Art
+                    </a>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+                # Hidden button to toggle expander
+                if st.button(" ", key=button_key):
                     if st.session_state['open_expander_id'] == release_id:
                         st.session_state['open_expander_id'] = None
+                    else:
+                        st.session_state['open_expander_id'] = release_id
 
             with cols[1]:
                 st.markdown(f"""
