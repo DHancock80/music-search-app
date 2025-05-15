@@ -21,6 +21,20 @@ GITHUB_BRANCH = 'main'
 DISCOGS_ICON_WHITE = 'https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_white.png'
 DISCOGS_ICON_BLACK = 'https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_black.png'
 
+# Inject JavaScript to detect dark mode
+st.markdown("""
+    <script>
+    const bodyClass = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    const params = new URLSearchParams(window.location.search);
+    params.set('themeMode', bodyClass);
+    const newUrl = window.location.pathname + '?' + params.toString();
+    window.history.replaceState({}, '', newUrl);
+    </script>
+""", unsafe_allow_html=True)
+
+query_params = st.query_params
+theme_mode = query_params.get("themeMode", "light")
+
 if 'open_expander_id' not in st.session_state:
     st.session_state['open_expander_id'] = None
 
@@ -194,8 +208,7 @@ if search_query:
             artist = "Various Artists" if group['Artist'].nunique() > 1 else group['Artist'].iloc[0]
             cover_url = first_row.get('cover_art_final') or fetch_discogs_cover(release_id) or PLACEHOLDER_COVER
 
-            dark_mode = st.get_option("theme.base") == "dark"
-            discogs_logo = DISCOGS_ICON_WHITE if dark_mode else DISCOGS_ICON_BLACK
+            discogs_logo = DISCOGS_ICON_WHITE if theme_mode == 'dark' else DISCOGS_ICON_BLACK
 
             cols = st.columns([1, 5])
             with cols[0]:
@@ -231,8 +244,6 @@ if search_query:
                         with cols[1]:
                             if st.form_submit_button("Revert to original Cover Art"):
                                 reset_cover_override(release_id)
-            else:
-                st.session_state[f"expander_{release_id}"] = False
 
             with st.expander("Click to view tracklist"):
                 st.dataframe(group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
