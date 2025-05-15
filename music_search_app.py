@@ -133,11 +133,12 @@ if search_query:
     df = load_data()
     results = search(df, search_query, search_type)
 
+    unique_releases = results[['release_id', 'Format']].drop_duplicates()
     format_counts = {
         'All': len(results),
-        'Album': results['Format'].str.contains("album|compilation|comp", case=False, na=False).sum(),
-        'Single': results['Format'].str.contains("single", case=False, na=False).sum(),
-        'Video': results['Format'].str.contains("video", case=False, na=False).sum()
+        'Album': unique_releases['Format'].str.contains("album|compilation|comp", case=False, na=False).sum(),
+        'Single': unique_releases['Format'].str.contains("single", case=False, na=False).sum(),
+        'Video': unique_releases['Format'].str.contains("video", case=False, na=False).sum()
     }
 
     format_filter = st.radio('Format:', [f"All ({format_counts['All']})", f"Album ({format_counts['Album']})", f"Single ({format_counts['Single']})", f"Video ({format_counts['Video']})"], horizontal=True)
@@ -166,11 +167,13 @@ if search_query:
                     else:
                         st.text("No cover art")
 
-                    if st.button("Edit Cover Art", key=f"editbtn_{release_id}"):
+                    st.markdown(f'<a href="#" style="display:inline-block;margin-top:10px;color:#00f;text-decoration:underline;font-size:14px;" onclick="window.dispatchEvent(new CustomEvent(\"expandCoverArt\", {{ detail: {release_id} }})); return false;">Edit Cover Art</a>', unsafe_allow_html=True)
+
+                    if st.button("Edit", key=f"editbtn_{release_id}"):
                         st.session_state.expanded_cover_id = release_id if st.session_state.expanded_cover_id != release_id else None
 
                 with cols[1]:
-                    st.markdown(f"### {title}")
+                    st.markdown(f"### {title} <a href='https://www.discogs.com/release/{release_id}' target='_blank' style='float:right; font-size:14px;'>🔗 View on Discogs</a>", unsafe_allow_html=True)
                     st.markdown(f"**Artist:** {display_artist}")
 
                 if st.session_state.expanded_cover_id == release_id:
