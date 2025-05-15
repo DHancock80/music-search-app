@@ -4,11 +4,14 @@ import re
 import requests
 import time
 import base64
+import shutil
 from datetime import datetime
+import os
 
 # Constants
 CSV_FILE = 'expanded_discogs_tracklists.csv'
 COVER_OVERRIDES_FILE = 'cover_overrides.csv'
+BACKUP_FOLDER = 'backups'
 DISCOGS_API_TOKEN = st.secrets["DISCOGS_API_TOKEN"]
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 GITHUB_REPO = 'DHancock80/music-search-app'
@@ -104,6 +107,20 @@ def upload_to_github(file_path, repo, token, branch, commit_message):
     response = requests.put(api_url, headers=headers, json=data)
     return response
 
+def backup_override_file():
+    if not os.path.exists(BACKUP_FOLDER):
+        os.makedirs(BACKUP_FOLDER)
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    backup_filename = os.path.join(BACKUP_FOLDER, f"cover_overrides_backup_{timestamp}.csv")
+    shutil.copy(COVER_OVERRIDES_FILE, backup_filename)
+    upload_to_github(
+        backup_filename,
+        GITHUB_REPO,
+        GITHUB_TOKEN,
+        GITHUB_BRANCH,
+        f"Backup: {backup_filename} ({datetime.utcnow().isoformat()} UTC)"
+    )
+
 def update_cover_override(release_id, url):
     try:
         overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1', on_bad_lines='skip')
@@ -113,6 +130,7 @@ def update_cover_override(release_id, url):
     overrides = overrides[overrides['release_id'] != release_id]
     overrides = pd.concat([overrides, pd.DataFrame([{'release_id': release_id, 'cover_url': url}])], ignore_index=True)
     overrides.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
+    backup_override_file()
     commit_message = f"Updated override for release_id {release_id} ({datetime.utcnow().isoformat()} UTC)"
     upload_to_github(COVER_OVERRIDES_FILE, GITHUB_REPO, GITHUB_TOKEN, GITHUB_BRANCH, commit_message)
 
@@ -121,6 +139,7 @@ def remove_cover_override(release_id):
         overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1', on_bad_lines='skip')
         overrides = overrides[overrides['release_id'] != release_id]
         overrides.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
+        backup_override_file()
         commit_message = f"Removed override for release_id {release_id} ({datetime.utcnow().isoformat()} UTC)"
         upload_to_github(COVER_OVERRIDES_FILE, GITHUB_REPO, GITHUB_TOKEN, GITHUB_BRANCH, commit_message)
     except FileNotFoundError:
