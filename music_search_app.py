@@ -175,6 +175,24 @@ if search_query:
         dark_mode = st.get_option("theme.base") == "dark"
         discogs_logo = DISCOGS_ICON_WHITE if dark_mode else DISCOGS_ICON_BLACK
 
+        # Style button as text link (responsive to dark/light mode)
+        st.markdown("""
+            <style>
+                div[data-testid="stButton"] > button {
+                    background: none;
+                    border: none;
+                    padding: 0;
+                    font-size: 14px;
+                    text-decoration: underline;
+                    color: var(--text-color);
+                    cursor: pointer;
+                }
+                div[data-testid="stButton"] > button:hover {
+                    color: var(--primary-color);
+                }
+            </style>
+        """, unsafe_allow_html=True)
+
         for release_id, group in results.groupby('release_id'):
             first_row = group.iloc[0]
             title = first_row['Title']
@@ -189,21 +207,7 @@ if search_query:
                     </a>
                 """, unsafe_allow_html=True)
 
-                # Show "Edit Cover Art" as link that triggers a hidden button
-                link_key = f"edit_link_{release_id}"
-                button_key = f"edit_btn_{release_id}"
-                st.markdown(
-                    f"""
-                    <a href="javascript:document.querySelector('[data-testid={button_key}]')?.click();"
-                    style="color:#1f77b4;text-decoration:underline;display:inline-block;margin-top:4px;">
-                        Edit Cover Art
-                    </a>
-                    """,
-                    unsafe_allow_html=True
-                )
-
-                # Hidden button to toggle expander
-                if st.button(" ", key=button_key):
+                if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
                     if st.session_state['open_expander_id'] == release_id:
                         st.session_state['open_expander_id'] = None
                     else:
