@@ -181,14 +181,28 @@ if search_query:
             with st.container():
                 cols = st.columns([1, 5])
                 with cols[0]:
-                    st.markdown(f'<a href="{cover_url}" target="_blank"><img src="{cover_url}" width="120"></a>', unsafe_allow_html=True)
-                    if st.button("Edit Cover Art", key=f"edit_{release_id}"):
-                        st.session_state.expanded_cover_id = release_id
-                        st.rerun()
+                    st.markdown(f'''
+                        <a href="{cover_url}" target="_blank">
+                            <img src="{cover_url}" width="120" style="border-radius:8px;" />
+                        </a>
+                        <div style="margin-top:4px;">
+                            <a href="#" onclick="window.dispatchEvent(new CustomEvent('expandCoverArt', {{ detail: {release_id} }})); return false;"
+                               style="font-size:13px; color:#1f77b4; text-decoration:underline;">
+                                Edit Cover Art
+                            </a>
+                        </div>
+                    ''', unsafe_allow_html=True)
 
                 with cols[1]:
-                    st.markdown(f"### {title} <a href='https://www.discogs.com/release/{release_id}' target='_blank' style='float:right;'><img src='{DISCOGS_ICON}' alt='Discogs' width='18'></a>", unsafe_allow_html=True)
-                    st.markdown(f"**Artist:** {display_artist}")
+                    st.markdown(f'''
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <div style="font-size:20px; font-weight:600;">{title}</div>
+                            <a href="https://www.discogs.com/release/{release_id}" target="_blank">
+                                <img src="{DISCOGS_ICON}" alt="Discogs" width="20" style="margin-left:10px;" />
+                            </a>
+                        </div>
+                        <div style="margin-bottom:4px;"><strong>Artist:</strong> {display_artist}</div>
+                    ''', unsafe_allow_html=True)
 
                 if st.session_state.expanded_cover_id == release_id:
                     with st.expander("Update Cover Art", expanded=True):
@@ -207,5 +221,18 @@ if search_query:
                         'Track Title': 'Song', 'CD': 'Disc', 'Track Number': 'Track'
                     }).reset_index(drop=True)
                     st.dataframe(tracklist, use_container_width=True, hide_index=True)
+
+        st.markdown("""
+            <script>
+            window.addEventListener("expandCoverArt", (e) => {
+                const id = e.detail;
+                fetch("/_stcore/stream", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ "setSessionState": { "expanded_cover_id": id } })
+                }).then(() => location.reload());
+            });
+            </script>
+        """, unsafe_allow_html=True)
 else:
     st.caption("Please enter a search query above.")
