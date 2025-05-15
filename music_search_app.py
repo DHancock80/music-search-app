@@ -27,9 +27,9 @@ if 'open_expander_id' not in st.session_state:
 
 def toggle_expander(rid):
     if st.session_state['open_expander_id'] == rid:
-        st.session_state['open_expander_id'] = None  # close it
+        st.session_state['open_expander_id'] = None
     else:
-        st.session_state['open_expander_id'] = rid  # open it
+        st.session_state['open_expander_id'] = rid
 
 @st.cache_data
 def load_data():
@@ -193,9 +193,20 @@ if search_query:
                     <a href="{cover_url}" target="_blank">
                         <img src="{cover_url}" width="120" style="border-radius:8px;" />
                     </a>
+                    <div style="margin-top:4px;font-size:14px;">
+                        <a href="#" onclick="fetch('/?release_id={release_id}').then(() => window.location.reload());" style="color:#1f77b4;text-decoration:underline;">
+                            <span onclick="window.parent.postMessage({{type:'streamlit:setComponentValue', key:'toggle_{release_id}'}}, '*');">Edit Cover Art</span>
+                        </a>
+                    </div>
                 """, unsafe_allow_html=True)
-                if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
-                    toggle_expander(release_id)
+                if st.session_state.get(f"toggle_{release_id}") is None:
+                    st.session_state[f"toggle_{release_id}"] = False
+
+                if st.session_state[f"toggle_{release_id}"]:
+                    st.session_state['open_expander_id'] = release_id
+                else:
+                    if st.session_state['open_expander_id'] == release_id:
+                        st.session_state['open_expander_id'] = None
 
             with cols[1]:
                 st.markdown(f"""
