@@ -17,7 +17,7 @@ DISCOGS_API_TOKEN = st.secrets["DISCOGS_API_TOKEN"]
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 GITHUB_REPO = 'DHancock80/music-search-app'
 GITHUB_BRANCH = 'main'
-DISCOGS_ICON_PNG = 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fb/Discogs_Logo.png/200px-Discogs_Logo.png'
+DISCOGS_ICON_PNG = 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fb/Discogs_Logo.png/120px-Discogs_Logo.png'
 
 @st.cache_data
 def load_data():
@@ -174,10 +174,9 @@ if search_query:
                     <a href="{cover_url}" target="_blank">
                         <img src="{cover_url}" width="120" style="border-radius:8px;" />
                     </a>
-                    <div style="margin-top:4px;">
-                        <form action="" method="post">
-                            <button name="edit_{release_id}" type="submit" style="all:unset;color:#1f77b4;text-decoration:underline;cursor:pointer;">Edit Cover Art</button>
-                        </form>
+                    <div style="margin-top:4px;font-size:14px;">
+                        <a href="#" onclick="window.dispatchEvent(new CustomEvent('expandCoverArt', {{ detail: {release_id} }})); return false;" style="color:#1f77b4;text-decoration:underline;">Edit Cover Art</a>
+                    </div>
                 """, unsafe_allow_html=True)
 
             with cols[1]:
@@ -185,24 +184,21 @@ if search_query:
                     <div style="display:flex;justify-content:space-between;align-items:center;">
                         <div style="font-size:20px;font-weight:600;">{title}</div>
                         <a href="https://www.discogs.com/release/{release_id}" target="_blank">
-                            <img src="{DISCOGS_ICON_PNG}" alt="Discogs" width="20" />
+                            <img src="{DISCOGS_ICON_PNG}" alt="Discogs" width="20" style="margin-left:10px;" />
                         </a>
                     </div>
                     <div><strong>Artist:</strong> {artist}</div>
                 """, unsafe_allow_html=True)
 
-            if st.form_submit_button(f"edit_{release_id}"):
-                st.session_state[f"show_expander_{release_id}"] = True
-
-            if st.session_state.get(f"show_expander_{release_id}"):
-                with st.expander("Update Cover Art", expanded=True):
+            with st.expander("Update Cover Art", expanded=st.session_state.get(f"show_expander_{release_id}", False)):
+                with st.form(f"form_{release_id}"):
                     new_url = st.text_input("Custom cover art URL:", key=f"url_{release_id}")
                     cols = st.columns(2)
                     with cols[0]:
-                        if st.button("Upload custom URL", key=f"up_{release_id}"):
+                        if st.form_submit_button("Upload custom URL"):
                             update_cover_override(release_id, new_url)
                     with cols[1]:
-                        if st.button("Revert to original Cover Art", key=f"res_{release_id}"):
+                        if st.form_submit_button("Revert to original Cover Art"):
                             reset_cover_override(release_id)
 
             with st.expander("Click to view tracklist"):
