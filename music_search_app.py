@@ -83,6 +83,18 @@ def search(df, query, search_type):
         return df[df['Title'].str.lower().str.contains(query, na=False)]
     return df
 
+def fetch_discogs_cover(release_id):
+    headers = {"Authorization": f"Discogs token={DISCOGS_API_TOKEN}"}
+    try:
+        response = requests.get(f"https://api.discogs.com/releases/{release_id}", headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            if 'images' in data and len(data['images']) > 0:
+                return data['images'][0]['uri']
+    except Exception as e:
+        st.warning(f"Discogs fetch failed for {release_id}: {e}")
+    return None
+
 def update_cover_override(release_id, new_url):
     try:
         if not os.path.exists(BACKUP_FOLDER):
@@ -159,6 +171,11 @@ if search_query:
             display_artist = "Various Artists" if len(artists) > 1 else artists[0] if artists.size > 0 else "Unknown"
             cover_url = first_row.get('cover_art_final')
 
+            if not cover_url:
+                cover_url = fetch_discogs_cover(release_id)
+                if cover_url:
+                    update_cover_override(release_id, cover_url)
+
             with st.container():
                 cols = st.columns([1, 5])
                 with cols[0]:
@@ -167,9 +184,7 @@ if search_query:
                     else:
                         st.text("No cover art")
 
-                    st.markdown(f'<a href="#" style="display:inline-block;margin-top:10px;color:#00f;text-decoration:underline;font-size:14px;" onclick="window.dispatchEvent(new CustomEvent(\"expandCoverArt\", {{ detail: {release_id} }})); return false;">Edit Cover Art</a>', unsafe_allow_html=True)
-
-                    if st.button("Edit", key=f"editbtn_{release_id}"):
+                    if st.button("Edit Cover Art", key=f"editbtn_{release_id}"):
                         st.session_state.expanded_cover_id = release_id if st.session_state.expanded_cover_id != release_id else None
 
                 with cols[1]:
