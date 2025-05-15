@@ -12,6 +12,7 @@ from datetime import datetime
 CSV_FILE = 'expanded_discogs_tracklists.csv'
 COVER_OVERRIDES_FILE = 'cover_overrides.csv'
 BACKUP_FOLDER = 'backups'
+PLACEHOLDER_COVER = 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/No-Image-Placeholder.svg/2048px-No-Image-Placeholder.svg.png'
 DISCOGS_API_TOKEN = st.secrets["DISCOGS_API_TOKEN"]
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 GITHUB_REPO = 'DHancock80/music-search-app'
@@ -172,19 +173,17 @@ if search_query:
             cover_url = first_row.get('cover_art_final')
 
             if not cover_url:
-                cover_url = fetch_discogs_cover(release_id)
-                if cover_url:
+                cover_url = fetch_discogs_cover(release_id) or PLACEHOLDER_COVER
+                if cover_url and cover_url != PLACEHOLDER_COVER:
                     update_cover_override(release_id, cover_url)
 
             with st.container():
                 cols = st.columns([1, 5])
                 with cols[0]:
-                    if cover_url:
-                        st.markdown(f'<a href="{cover_url}" target="_blank"><img src="{cover_url}" width="120"></a>', unsafe_allow_html=True)
-                    else:
-                        st.text("No cover art")
-
-                    if st.button("Edit Cover Art", key=f"editbtn_{release_id}"):
+                    st.markdown(f'<a href="{cover_url}" target="_blank"><img src="{cover_url}" width="120"></a>', unsafe_allow_html=True)
+                    edit_link = f'<a href="#" style="display:inline-block;margin-top:10px;color:#00f;text-decoration:underline;font-size:14px;" onclick="window.dispatchEvent(new CustomEvent(\"expandCoverArt\", {{ detail: {release_id} }})); return false;">Edit Cover Art</a>'
+                    st.markdown(edit_link, unsafe_allow_html=True)
+                    if st.button("Edit", key=f"editbtn_{release_id}"):
                         st.session_state.expanded_cover_id = release_id if st.session_state.expanded_cover_id != release_id else None
 
                 with cols[1]:
