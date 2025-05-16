@@ -10,8 +10,7 @@ try:
     GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
     GITHUB_REPO = st.secrets["GITHUB_REPO"]
 except Exception as e:
-    st.warning("🔐 Unable to access Streamlit secrets. Please verify your configuration.")
-    st.stop()
+    raise RuntimeError("🔐 Unable to access Streamlit secrets. Please verify your configuration in Streamlit Cloud or your local .streamlit/secrets.toml file.")
 st.warning("🔐 Unable to access Streamlit secrets. Please verify your configuration.")
 st.stop()
 GITHUB_BRANCH = 'main'
