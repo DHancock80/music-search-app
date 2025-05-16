@@ -30,24 +30,16 @@ if 'open_expander_id' not in st.session_state:
     st.session_state['open_expander_id'] = None
 
 @st.cache_data
+
 def load_data():
     try:
-        try:
-            df = pd.read_csv(CSV_FILE, encoding='utf-8')
-        except UnicodeDecodeError:
-            st.warning("UTF-8 decoding failed, falling back to latin1.")
-            df = pd.read_csv(CSV_FILE, encoding='latin1')
-
+        df = pd.read_csv(CSV_FILE, encoding='utf-8')
         if df.columns[0].startswith("Unnamed"):
             df = df.drop(columns=[df.columns[0]])
         if 'cover_art' not in df.columns:
             df['cover_art'] = None
         try:
-            try:
-                overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='utf-8')
-            except UnicodeDecodeError:
-                st.warning("UTF-8 decoding failed for overrides, using latin1.")
-                overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1', on_bad_lines='skip')
+            overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='utf-8', on_bad_lines='skip')
             overrides.columns = overrides.columns.str.strip().str.lower()
             if not {'release_id', 'cover_url'}.issubset(overrides.columns):
                 st.warning("Overrides file missing required columns. Skipping override merge.")
@@ -63,6 +55,41 @@ def load_data():
         st.error(f"Error loading the CSV file: {e}")
         df = pd.DataFrame()
     return df
+
+def normalize(text):
+    if pd.isna(text): return ''
+    text = text.lower()
+    text = ''.join(c for c in unicodedata.normalize('NFKD', text) if not unicodedata.combining(c))
+    return text
+
+def clean_artist_variants(artist):
+    artist = normalize(artist)
+    artist = re.sub(r'\s*(feat\.|ft\.|featuring)\s*', ' ', artist)
+    artist = re.sub(r'[,/&]+', ' ', artist)
+    return re.sub(r'\s+', ' ', artist).strip().split()
+
+def search(df, query, search_type):
+    norm_query = normalize(query.strip())
+    if search_type == 'Song Title':
+        return df[df['Track Title'].apply(normalize).str.contains(norm_query, na=False)]
+    elif search_type == 'Artist':
+        mask = df['Artist'].apply(lambda artists: any(norm_query in clean_artist_variants(artists)))
+        return df[mask]
+    elif search_type == 'Album':
+        return df[df['Title'].apply(normalize).str.contains(norm_query, na=False)]
+    return df
+
+def fetch_discogs_cover(release_id):
+    headers = {"Authorization": f"Discogs token={DISCOGS_API_TOKEN}"}
+    try:
+        response = requests.get(f"https://api.discogs.com/releases/{release_id}", headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            if 'images' in data and len(data['images']) > 0:
+                return data['images'][0]['uri']
+    except Exception as e:
+        st.warning(f"Discogs fetch failed for {release_id}: {e}")
+    return None
 
 def upload_to_github(file_path, repo, token, branch, commit_message):
     api_url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
@@ -84,41 +111,6 @@ def upload_to_github(file_path, repo, token, branch, commit_message):
         data["sha"] = sha
     response = requests.put(api_url, headers=headers, json=data)
     return response
-
-def normalize_text(text):
-    if pd.isna(text):
-        return ''
-    text = str(text)
-    text = unicodedata.normalize('NFKD', text)
-    return ''.join([c for c in text if not unicodedata.combining(c)]).lower()
-
-def clean_artist_name(artist):
-    return normalize_text(re.sub(r'[\*\(\)\[#]', '', re.sub(r'\s*(feat\.|ft\.|featuring)\s*', ' ', str(artist).replace('&', ' ').replace(',', ' '))))
-
-def search(df, query, search_type):
-    query_norm = normalize_text(query.strip())
-    if search_type == 'Song Title':
-        df['track_norm'] = df['Track Title'].apply(normalize_text)
-        return df[df['track_norm'].str.contains(query_norm, na=False)]
-    elif search_type == 'Artist':
-        df['artist_clean'] = df['Artist'].apply(clean_artist_name)
-        return df[df['artist_clean'].str.contains(query_norm, na=False)]
-    elif search_type == 'Album':
-        df['title_norm'] = df['Title'].apply(normalize_text)
-        return df[df['title_norm'].str.contains(query_norm, na=False)]
-    return df
-
-def fetch_discogs_cover(release_id):
-    headers = {"Authorization": f"Discogs token={DISCOGS_API_TOKEN}"}
-    try:
-        response = requests.get(f"https://api.discogs.com/releases/{release_id}", headers=headers)
-        if response.status_code == 200:
-            data = response.json()
-            if 'images' in data and len(data['images']) > 0:
-                return data['images'][0]['uri']
-    except Exception as e:
-        st.warning(f"Discogs fetch failed for {release_id}: {e}")
-    return None
 
 def update_cover_override(release_id, new_url):
     try:
@@ -163,20 +155,11 @@ def reset_cover_override(release_id):
 # --------------------------- MAIN UI ---------------------------
 
 st.title('Music Search App')
-
 search_query = st.text_input('Enter your search:', '')
 search_type = st.radio('Search by:', ['Song Title', 'Artist', 'Album'], horizontal=True)
 
 if search_query:
     df = load_data()
-
-    # 🔍 DEBUGGING Björk Matching
-    if search_query.lower() in ['bjork', 'björk']:
-        st.subheader("DEBUG: Searching for 'bjork'")
-        df['artist_norm'] = df['Artist'].apply(normalize_text)
-        bjork_matches = df[df['artist_norm'].str.contains('bjork', na=False)]
-        st.dataframe(bjork_matches[['Artist', 'artist_norm', 'Track Title']])
-
     results = search(df, search_query, search_type)
 
     unique_releases = results[['release_id', 'Format']].drop_duplicates()
@@ -197,36 +180,6 @@ if search_query:
     if results.empty:
         st.info("No results found.")
     else:
-        st.markdown("""
-            <style>
-            div[data-testid="stButton"] > button {
-                background: none;
-                border: none;
-                padding: 0;
-                font-size: 14px;
-                text-decoration: underline;
-                color: var(--text-color);
-                cursor: pointer;
-            }
-            div[data-testid="stButton"] > button:hover {
-                color: var(--primary-color);
-            }
-            </style>
-        """, unsafe_allow_html=True)
-
-        theme_icon_script = f"""
-        <script>
-        document.addEventListener('DOMContentLoaded', function () {{
-            const logos = document.querySelectorAll('[data-discogs-icon]');
-            const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            logos.forEach(el => {{
-                el.src = isDark ? '{DISCOGS_ICON_WHITE}' : '{DISCOGS_ICON_BLACK}';
-            }});
-        }});
-        </script>
-        """
-        st.markdown(theme_icon_script, unsafe_allow_html=True)
-
         for release_id, group in results.groupby('release_id'):
             first_row = group.iloc[0]
             title = first_row['Title']
@@ -235,28 +188,16 @@ if search_query:
 
             cols = st.columns([1, 5])
             with cols[0]:
-                st.markdown(f"""
-                    <a href="{cover_url}" target="_blank">
-                        <img src="{cover_url}" width="120" style="border-radius:8px;" />
-                    </a>
-                """, unsafe_allow_html=True)
-
+                st.image(cover_url, width=100)
                 if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
                     st.session_state['open_expander_id'] = release_id if st.session_state.get('open_expander_id') != release_id else None
 
             with cols[1]:
-                discogs_icon = f'<img data-discogs-icon src="{DISCOGS_ICON_WHITE}" width="24" style="margin-left:10px;" />'
-                st.markdown(f"""
-                    <div style="display:flex;justify-content:space-between;align-items:center;">
-                        <div style="font-size:20px;font-weight:600;">{title}</div>
-                        <a href="https://www.discogs.com/release/{release_id}" target="_blank">{discogs_icon}</a>
-                    </div>
-                    <div><strong>Artist:</strong> {artist}</div>
-                """, unsafe_allow_html=True)
+                st.markdown(f"**{title}**")
+                st.markdown(f"*Artist:* {artist}")
+                st.markdown(f'<a href="https://www.discogs.com/release/{release_id}" target="_blank"><img src="{DISCOGS_ICON_WHITE}" width="20" /></a>', unsafe_allow_html=True)
 
-            is_expanded = st.session_state.get('open_expander_id') == release_id
-
-            if is_expanded:
+            if st.session_state.get('open_expander_id') == release_id:
                 with st.expander("Update Cover Art", expanded=True):
                     with st.form(f"form_{release_id}"):
                         new_url = st.text_input("Custom cover art URL:", key=f"url_{release_id}")
