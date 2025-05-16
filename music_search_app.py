@@ -225,7 +225,7 @@ if search_query:
                     )
 
             with cols[1]:
-                discogs_icon = '<img data-discogs-icon src="" width="24" style="margin-left:10px;" />'
+                discogs_icon = '<img data-discogs-icon src="https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_white.png" width="24" style="margin-left:10px;" />'
                 st.markdown(f"""
                     <div style="display:flex;justify-content:space-between;align-items:center;">
                         <div style="font-size:20px;font-weight:600;">{title}</div>
@@ -246,8 +246,6 @@ if search_query:
                             if st.form_submit_button("Revert to original Cover Art"):
                                 reset_cover_override(release_id)
             else:
-                st.markdown('<div style="height:32px;"></div>', unsafe_allow_html=True)
-
                 with st.expander("Click to view tracklist"):
                     st.dataframe(group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
                     'Track Title': 'Song', 'CD': 'Disc', 'Track Number': 'Track'
