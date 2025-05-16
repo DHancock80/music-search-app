@@ -212,11 +212,11 @@ if search_query:
 
             cols = st.columns([1, 5])
             with cols[0]:
-                st.markdown(f"""
-                    <a href="{cover_url}" target="_blank">
-                        <img src="{cover_url}" width="120" style="border-radius:8px;" />
-                    </a>
-                """, unsafe_allow_html=True)
+    st.markdown(f"""
+        <a href="{cover_url}" target="_blank">
+            <img src="{cover_url}" width="120" style="border-radius:8px;" />
+        </a>
+    """, unsafe_allow_html=True)
 
-                    if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
+    if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
         st.session_state['open_expander_id'] = release_id if st.session_state.get('open_expander_id') != release_id else None
