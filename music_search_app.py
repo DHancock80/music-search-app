@@ -210,7 +210,7 @@ if search_query:
             artist = "Various Artists" if group['Artist'].nunique() > 1 else group['Artist'].iloc[0]
             cover_url = first_row.get('cover_art_final') or fetch_discogs_cover(release_id) or PLACEHOLDER_COVER
 
-            cols = st.columns([1, 5])
+cols = st.columns([1, 5])
 with cols[0]:
     st.markdown(f"""
         <a href="{cover_url}" target="_blank">
