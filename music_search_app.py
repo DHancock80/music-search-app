@@ -232,17 +232,17 @@ if search_query:
                     <div><strong>Artist:</strong> {artist}</div>
                 """, unsafe_allow_html=True)
 
-            if st.session_state.get('open_expander_id') == release_id:
-            with st.expander("Update Cover Art", expanded=True):
-                    with st.form(f"form_{release_id}"):
-                        new_url = st.text_input("Custom cover art URL:", key=f"url_{release_id}")
-                        cols = st.columns(2)
-                        with cols[0]:
-                            if st.form_submit_button("Upload custom URL"):
-                                update_cover_override(release_id, new_url)
-                        with cols[1]:
-                            if st.form_submit_button("Revert to original Cover Art"):
-                                reset_cover_override(release_id)
+if st.session_state.get('open_expander_id') == release_id:
+    with st.expander("Update Cover Art", expanded=True):
+        with st.form(f"form_{release_id}"):
+            new_url = st.text_input("Custom cover art URL:", key=f"url_{release_id}")
+            cols = st.columns(2)
+            with cols[0]:
+                if st.form_submit_button("Upload custom URL"):
+                    update_cover_override(release_id, new_url)
+            with cols[1]:
+                if st.form_submit_button("Revert to original Cover Art"):
+                    reset_cover_override(release_id)
             if not is_expanded:
                 with st.expander("Click to view tracklist"):
                     st.dataframe(group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
