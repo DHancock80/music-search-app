@@ -58,7 +58,7 @@ def load_data():
 
 def normalize(text):
     if pd.isna(text): return ''
-    text = text.lower()
+    text = str(text).lower()
     text = ''.join(c for c in unicodedata.normalize('NFKD', text) if not unicodedata.combining(c))
     return text
 
@@ -73,84 +73,11 @@ def search(df, query, search_type):
     if search_type == 'Song Title':
         return df[df['Track Title'].apply(normalize).str.contains(norm_query, na=False)]
     elif search_type == 'Artist':
-        mask = df['Artist'].apply(lambda artists: any(norm_query in clean_artist_variants(artists)))
+        mask = df['Artist'].apply(lambda artists: any(norm_query in clean_artist_variants(str(artists))))
         return df[mask]
     elif search_type == 'Album':
         return df[df['Title'].apply(normalize).str.contains(norm_query, na=False)]
     return df
-
-def fetch_discogs_cover(release_id):
-    headers = {"Authorization": f"Discogs token={DISCOGS_API_TOKEN}"}
-    try:
-        response = requests.get(f"https://api.discogs.com/releases/{release_id}", headers=headers)
-        if response.status_code == 200:
-            data = response.json()
-            if 'images' in data and len(data['images']) > 0:
-                return data['images'][0]['uri']
-    except Exception as e:
-        st.warning(f"Discogs fetch failed for {release_id}: {e}")
-    return None
-
-def upload_to_github(file_path, repo, token, branch, commit_message):
-    api_url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    with open(file_path, "rb") as f:
-        content = f.read()
-    content_b64 = base64.b64encode(content).decode()
-    get_resp = requests.get(api_url, headers=headers, params={"ref": branch})
-    sha = get_resp.json()['sha'] if get_resp.status_code == 200 else None
-    data = {
-        "message": commit_message,
-        "content": content_b64,
-        "branch": branch
-    }
-    if sha:
-        data["sha"] = sha
-    response = requests.put(api_url, headers=headers, json=data)
-    return response
-
-def update_cover_override(release_id, new_url):
-    try:
-        if not os.path.exists(BACKUP_FOLDER):
-            os.makedirs(BACKUP_FOLDER)
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        backup_file = os.path.join(BACKUP_FOLDER, f"cover_overrides_backup_{timestamp}.csv")
-        shutil.copy(COVER_OVERRIDES_FILE, backup_file)
-        backups = sorted(os.listdir(BACKUP_FOLDER))
-        if len(backups) > 10:
-            os.remove(os.path.join(BACKUP_FOLDER, backups[0]))
-    except Exception as e:
-        st.error(f"Backup failed: {e}")
-
-    try:
-        overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='utf-8')
-        overrides.columns = overrides.columns.str.strip().str.lower()
-    except:
-        overrides = pd.DataFrame(columns=['release_id', 'cover_url'])
-
-    overrides = overrides[overrides['release_id'] != release_id]
-    overrides = pd.concat([overrides, pd.DataFrame([{'release_id': release_id, 'cover_url': new_url}])], ignore_index=True)
-    overrides.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='utf-8')
-    upload_to_github(COVER_OVERRIDES_FILE, GITHUB_REPO, GITHUB_TOKEN, GITHUB_BRANCH, f"Update cover for {release_id}")
-    st.success("✅ Custom cover art uploaded and synced to GitHub!")
-    st.cache_data.clear()
-    st.rerun()
-
-def reset_cover_override(release_id):
-    try:
-        overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='utf-8')
-        overrides.columns = overrides.columns.str.strip().str.lower()
-        overrides = overrides[overrides['release_id'] != release_id]
-        overrides.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='utf-8')
-        upload_to_github(COVER_OVERRIDES_FILE, GITHUB_REPO, GITHUB_TOKEN, GITHUB_BRANCH, f"Reset cover for {release_id}")
-        st.success("✅ Reverted to original cover art and synced to GitHub!")
-        st.cache_data.clear()
-        st.rerun()
-    except Exception as e:
-        st.error(f"Reset failed: {e}")
 
 # --------------------------- MAIN UI ---------------------------
 
@@ -161,6 +88,35 @@ search_type = st.radio('Search by:', ['Song Title', 'Artist', 'Album'], horizont
 if search_query:
     df = load_data()
     results = search(df, search_query, search_type)
+
+    st.markdown("""
+        <style>
+        div[data-testid="stButton"] > button {
+            background: none;
+            border: none;
+            padding: 0;
+            font-size: 14px;
+            text-decoration: underline;
+            color: var(--text-color);
+            cursor: pointer;
+        }
+        div[data-testid="stButton"] > button:hover {
+            color: var(--primary-color);
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown(f"""
+        <script>
+        document.addEventListener('DOMContentLoaded', function () {{
+            const logos = document.querySelectorAll('[data-discogs-icon]');
+            const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            logos.forEach(el => {{
+                el.src = isDark ? '{DISCOGS_ICON_WHITE}' : '{DISCOGS_ICON_BLACK}';
+            }});
+        }});
+        </script>
+    """, unsafe_allow_html=True)
 
     unique_releases = results[['release_id', 'Format']].drop_duplicates()
     format_counts = {
@@ -184,18 +140,29 @@ if search_query:
             first_row = group.iloc[0]
             title = first_row['Title']
             artist = "Various Artists" if group['Artist'].nunique() > 1 else group['Artist'].iloc[0]
-            cover_url = first_row.get('cover_art_final') or fetch_discogs_cover(release_id) or PLACEHOLDER_COVER
+            cover_url = first_row.get('cover_art_final') or PLACEHOLDER_COVER
 
             cols = st.columns([1, 5])
             with cols[0]:
-                st.image(cover_url, width=100)
-                if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
-                    st.session_state['open_expander_id'] = release_id if st.session_state.get('open_expander_id') != release_id else None
+                st.markdown(f"""
+                    <a href="{cover_url}" target="_blank">
+                        <img src="{cover_url}" width="120" style="border-radius:8px;" />
+                    </a>
+                    <div style="margin-top:4px;font-size:14px;">
+                        <a href="?expand={release_id}" style="color:#1f77b4;text-decoration:underline;">Edit Cover Art</a>
+                    </div>
+                """, unsafe_allow_html=True)
 
             with cols[1]:
-                st.markdown(f"**{title}**")
-                st.markdown(f"*Artist:* {artist}")
-                st.markdown(f'<a href="https://www.discogs.com/release/{release_id}" target="_blank"><img src="{DISCOGS_ICON_WHITE}" width="20" /></a>', unsafe_allow_html=True)
+                st.markdown(f"""
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <div style="font-size:20px;font-weight:600;">{title}</div>
+                        <a href="https://www.discogs.com/release/{release_id}" target="_blank">
+                            <img data-discogs-icon src="{DISCOGS_ICON_WHITE}" alt="Discogs" width="24" style="margin-left:10px;" />
+                        </a>
+                    </div>
+                    <div><strong>Artist:</strong> {artist}</div>
+                """, unsafe_allow_html=True)
 
             if st.session_state.get('open_expander_id') == release_id:
                 with st.expander("Update Cover Art", expanded=True):
