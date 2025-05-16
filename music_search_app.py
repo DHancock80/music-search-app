@@ -5,7 +5,8 @@ CSV_FILE = 'expanded_discogs_tracklists.csv'
 COVER_OVERRIDES_FILE = 'cover_overrides.csv'
 BACKUP_FOLDER = 'backups'
 PLACEHOLDER_COVER = 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/No-Image-Placeholder.svg/2048px-No-Image-Placeholder.svg.png'
-if not all(k in st.secrets for k in ["DISCOGS_API_TOKEN", "GITHUB_TOKEN", "GITHUB_REPO"]):
+missing_secrets = [k for k in ["DISCOGS_API_TOKEN", "GITHUB_TOKEN", "GITHUB_REPO"] if k not in st.secrets]
+if missing_secrets:
     st.error("🔐 One or more required Streamlit secrets are missing. Please check your settings.")
     st.stop()
 
