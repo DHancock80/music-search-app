@@ -31,6 +31,13 @@ if 'open_expander_id' not in st.session_state:
 
 @st.cache_data
 def load_data():
+    # DEBUGGING
+if search_query.lower() in ['bjork', 'björk']:
+    st.subheader("DEBUG: Searching for 'bjork'")
+    df['artist_norm'] = df['Artist'].apply(normalize_text)
+    matches = df[df['artist_norm'].str.contains('bjork', na=False)]
+    st.write(matches[['Artist', 'artist_norm', 'Track Title']])
+
     try:
         try:
             df = pd.read_csv(CSV_FILE, encoding='utf-8')
