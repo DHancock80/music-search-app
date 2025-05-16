@@ -219,14 +219,14 @@ if search_query:
                 """, unsafe_allow_html=True)
 
                 if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
-                    st.session_state['open_expander_id'] = release_id
+    st.session_state['open_expander_id'] = release_id if st.session_state.get('open_expander_id') != release_id else None
 
             with cols[1]:
                 st.markdown(f"""
                     <div style="display:flex;justify-content:space-between;align-items:center;">
                         <div style="font-size:20px;font-weight:600;">{title}</div>
                         <a href="https://www.discogs.com/release/{release_id}" target="_blank">
-                            <img data-discogs-icon src="{DISCOGS_ICON_BLACK}" alt="Discogs" width="24" style="margin-left:10px;" />
+                            <img data-discogs-icon src="" alt="Discogs" width="24" style="margin-left:10px;" />
                         </a>
                     </div>
                     <div><strong>Artist:</strong> {artist}</div>
