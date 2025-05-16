@@ -5,17 +5,14 @@ CSV_FILE = 'expanded_discogs_tracklists.csv'
 COVER_OVERRIDES_FILE = 'cover_overrides.csv'
 BACKUP_FOLDER = 'backups'
 PLACEHOLDER_COVER = 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/No-Image-Placeholder.svg/2048px-No-Image-Placeholder.svg.png'
-
 try:
     DISCOGS_API_TOKEN = st.secrets["DISCOGS_API_TOKEN"]
     GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
     GITHUB_REPO = st.secrets["GITHUB_REPO"]
 except Exception as e:
-    st.error(f"🔐 Missing or inaccessible secrets: {e}")
+    st.error("🔐 Secrets could not be loaded. Make sure they are defined in your Streamlit settings.")
     st.stop()
-
 GITHUB_BRANCH = 'main'
-
 
 if 'open_expander_id' not in st.session_state:
     st.session_state['open_expander_id'] = None
