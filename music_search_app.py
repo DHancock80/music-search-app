@@ -31,13 +31,6 @@ if 'open_expander_id' not in st.session_state:
 
 @st.cache_data
 def load_data():
-    # DEBUGGING
-    if search_query.lower() in ['bjork', 'björk']:
-    st.subheader("DEBUG: Searching for 'bjork'")
-    df['artist_norm'] = df['Artist'].apply(normalize_text)
-    matches = df[df['artist_norm'].str.contains('bjork', na=False)]
-    st.write(matches[['Artist', 'artist_norm', 'Track Title']])
-
     try:
         try:
             df = pd.read_csv(CSV_FILE, encoding='utf-8')
@@ -176,6 +169,14 @@ search_type = st.radio('Search by:', ['Song Title', 'Artist', 'Album'], horizont
 
 if search_query:
     df = load_data()
+
+    # 🔍 DEBUGGING Björk Matching
+    if search_query.lower() in ['bjork', 'björk']:
+        st.subheader("DEBUG: Searching for 'bjork'")
+        df['artist_norm'] = df['Artist'].apply(normalize_text)
+        bjork_matches = df[df['artist_norm'].str.contains('bjork', na=False)]
+        st.dataframe(bjork_matches[['Artist', 'artist_norm', 'Track Title']])
+
     results = search(df, search_query, search_type)
 
     unique_releases = results[['release_id', 'Format']].drop_duplicates()
