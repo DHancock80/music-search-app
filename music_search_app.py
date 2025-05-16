@@ -244,7 +244,7 @@ if search_query:
                         with cols[1]:
                             if st.form_submit_button("Revert to original Cover Art"):
                                 reset_cover_override(release_id)
-            else:
+            if not is_expanded:
                 with st.expander("Click to view tracklist"):
                     st.dataframe(group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
                         'Track Title': 'Song', 'CD': 'Disc', 'Track Number': 'Track'
