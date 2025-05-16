@@ -219,4 +219,4 @@ if search_query:
                 """, unsafe_allow_html=True)
 
                 if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
-    st.session_state['open_expander_id'] = release_id if st.session_state.get('open_expander_id') != release_id else None
+                    st.session_state['open_expander_id'] = release_id if st.session_state.get('open_expander_id') != release_id else None
