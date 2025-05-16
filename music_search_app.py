@@ -232,9 +232,8 @@ if search_query:
                     <div><strong>Artist:</strong> {artist}</div>
                 """, unsafe_allow_html=True)
 
-            is_expanded = st.session_state.get('open_expander_id') == release_id
-            if is_expanded:
-                with st.expander("Update Cover Art", expanded=True):
+            if st.session_state.get('open_expander_id') == release_id:
+            with st.expander("Update Cover Art", expanded=True):
                     with st.form(f"form_{release_id}"):
                         new_url = st.text_input("Custom cover art URL:", key=f"url_{release_id}")
                         cols = st.columns(2)
