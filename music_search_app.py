@@ -249,7 +249,7 @@ if search_query:
                 st.markdown('<div style="height:32px;"></div>', unsafe_allow_html=True)
 
                 with st.expander("Click to view tracklist"):
-                st.dataframe(group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
+                    st.dataframe(group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
                     'Track Title': 'Song', 'CD': 'Disc', 'Track Number': 'Track'
                 }).reset_index(drop=True), use_container_width=True, hide_index=True)
 else:
