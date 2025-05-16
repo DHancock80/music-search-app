@@ -1,15 +1,6 @@
-import streamlit as st
-import pandas as pd
-import re
-import requests
-import time
-import base64
-import shutil
-import os
-from datetime import datetime
-import json
-
 # Constants
+DISCOGS_ICON_WHITE = 'https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_white.png'
+DISCOGS_ICON_BLACK = 'https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_black.png'
 CSV_FILE = 'expanded_discogs_tracklists.csv'
 COVER_OVERRIDES_FILE = 'cover_overrides.csv'
 BACKUP_FOLDER = 'backups'
