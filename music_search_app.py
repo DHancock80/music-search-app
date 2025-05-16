@@ -10,8 +10,9 @@ try:
     GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
     GITHUB_REPO = st.secrets["GITHUB_REPO"]
 except Exception as e:
-    st.error("🔐 Secrets could not be loaded. Make sure they are defined in your Streamlit settings.")
-    st.stop()
+    import streamlit as st
+st.warning("🔐 Unable to access Streamlit secrets. Please verify your configuration.")
+st.stop()
 GITHUB_BRANCH = 'main'
 
 if 'open_expander_id' not in st.session_state:
