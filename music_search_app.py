@@ -32,7 +32,7 @@ if 'open_expander_id' not in st.session_state:
 @st.cache_data
 def load_data():
     # DEBUGGING
-if search_query.lower() in ['bjork', 'björk']:
+    if search_query.lower() in ['bjork', 'björk']:
     st.subheader("DEBUG: Searching for 'bjork'")
     df['artist_norm'] = df['Artist'].apply(normalize_text)
     matches = df[df['artist_norm'].str.contains('bjork', na=False)]
