@@ -18,22 +18,6 @@ DISCOGS_API_TOKEN = st.secrets["DISCOGS_API_TOKEN"]
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 GITHUB_REPO = 'DHancock80/music-search-app'
 GITHUB_BRANCH = 'main'
-DISCOGS_ICON_WHITE = 'https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_white.png'
-DISCOGS_ICON_BLACK = 'https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_black.png'
-
-# Inject JavaScript to detect dark mode
-st.markdown("""
-    <script>
-    const bodyClass = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    const params = new URLSearchParams(window.location.search);
-    params.set('themeMode', bodyClass);
-    const newUrl = window.location.pathname + '?' + params.toString();
-    window.history.replaceState({}, '', newUrl);
-    </script>
-""", unsafe_allow_html=True)
-
-query_params = st.query_params
-theme_mode = query_params.get("themeMode", "light")
 
 if 'open_expander_id' not in st.session_state:
     st.session_state['open_expander_id'] = None
@@ -202,13 +186,24 @@ if search_query:
             </style>
         """, unsafe_allow_html=True)
 
+        theme_icon_script = """
+        <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const logos = document.querySelectorAll('[data-discogs-icon]');
+            const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            logos.forEach(el => {
+                el.src = isDark ? '{}'.replace("\\", "") : '{}'.replace("\\", "");
+            });
+        });
+        </script>
+        """.format(DISCOGS_ICON_WHITE, DISCOGS_ICON_BLACK)
+        st.markdown(theme_icon_script, unsafe_allow_html=True)
+
         for release_id, group in results.groupby('release_id'):
             first_row = group.iloc[0]
             title = first_row['Title']
             artist = "Various Artists" if group['Artist'].nunique() > 1 else group['Artist'].iloc[0]
             cover_url = first_row.get('cover_art_final') or fetch_discogs_cover(release_id) or PLACEHOLDER_COVER
-
-            discogs_logo = DISCOGS_ICON_WHITE if theme_mode == 'dark' else DISCOGS_ICON_BLACK
 
             cols = st.columns([1, 5])
             with cols[0]:
@@ -226,13 +221,12 @@ if search_query:
                     <div style="display:flex;justify-content:space-between;align-items:center;">
                         <div style="font-size:20px;font-weight:600;">{title}</div>
                         <a href="https://www.discogs.com/release/{release_id}" target="_blank">
-                            <img src="{discogs_logo}" alt="Discogs" width="24" style="margin-left:10px;" />
+                            <img data-discogs-icon src="{DISCOGS_ICON_BLACK}" alt="Discogs" width="24" style="margin-left:10px;" />
                         </a>
                     </div>
                     <div><strong>Artist:</strong> {artist}</div>
                 """, unsafe_allow_html=True)
 
-            # Expander: ensure only one open at a time
             if st.session_state.get('open_expander_id') == release_id:
                 with st.expander("Update Cover Art", expanded=True):
                     with st.form(f"form_{release_id}"):
