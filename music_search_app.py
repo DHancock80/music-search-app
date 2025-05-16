@@ -5,6 +5,7 @@ import os
 import shutil
 import re
 from datetime import datetime
+import streamlit as st
 
 # Constants
 DISCOGS_ICON_WHITE = 'https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_white.png'
@@ -13,7 +14,7 @@ CSV_FILE = 'expanded_discogs_tracklists.csv'
 COVER_OVERRIDES_FILE = 'cover_overrides.csv'
 BACKUP_FOLDER = 'backups'
 PLACEHOLDER_COVER = 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/No-Image-Placeholder.svg/2048px-No-Image-Placeholder.svg.png'
-import streamlit as st
+
 missing_secrets = [k for k in ["DISCOGS_API_TOKEN", "GITHUB_TOKEN", "GITHUB_REPO"] if k not in st.secrets]
 if missing_secrets:
     st.error("🔐 One or more required Streamlit secrets are missing. Please check your settings.")
@@ -212,11 +213,42 @@ if search_query:
 
             cols = st.columns([1, 5])
             with cols[0]:
-    st.markdown(f"""
-        <a href=\"{cover_url}\" target=\"_blank\">
-            <img src=\"{cover_url}\" width=\"120\" style=\"border-radius:8px;\" />
-        </a>
-    """, unsafe_allow_html=True)
+                st.markdown(f"""
+                    <a href="{cover_url}" target="_blank">
+                        <img src="{cover_url}" width="120" style="border-radius:8px;" />
+                    </a>
+                """, unsafe_allow_html=True)
 
-    if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
-        st.session_state['open_expander_id'] = release_id if st.session_state.get('open_expander_id') != release_id else None
+                if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
+                    st.session_state['open_expander_id'] = (
+                        release_id if st.session_state.get('open_expander_id') != release_id else None
+                    )
+
+            with cols[1]:
+                discogs_icon = f'<img data-discogs-icon src="{DISCOGS_ICON_BLACK}" width="24" style="margin-left:10px;" />'
+                st.markdown(f"""
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <div style="font-size:20px;font-weight:600;">{title}</div>
+                        <a href="https://www.discogs.com/release/{release_id}" target="_blank">{discogs_icon}</a>
+                    </div>
+                    <div><strong>Artist:</strong> {artist}</div>
+                """, unsafe_allow_html=True)
+
+            if st.session_state.get('open_expander_id') == release_id:
+                with st.expander("Update Cover Art", expanded=True):
+                    with st.form(f"form_{release_id}"):
+                        new_url = st.text_input("Custom cover art URL:", key=f"url_{release_id}")
+                        cols = st.columns(2)
+                        with cols[0]:
+                            if st.form_submit_button("Upload custom URL"):
+                                update_cover_override(release_id, new_url)
+                        with cols[1]:
+                            if st.form_submit_button("Revert to original Cover Art"):
+                                reset_cover_override(release_id)
+
+            with st.expander("Click to view tracklist"):
+                st.dataframe(group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
+                    'Track Title': 'Song', 'CD': 'Disc', 'Track Number': 'Track'
+                }).reset_index(drop=True), use_container_width=True, hide_index=True)
+else:
+    st.caption("Please enter a search query above.")
