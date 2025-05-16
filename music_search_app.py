@@ -5,12 +5,8 @@ CSV_FILE = 'expanded_discogs_tracklists.csv'
 COVER_OVERRIDES_FILE = 'cover_overrides.csv'
 BACKUP_FOLDER = 'backups'
 PLACEHOLDER_COVER = 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/No-Image-Placeholder.svg/2048px-No-Image-Placeholder.svg.png'
-DISCOGS_API_TOKEN = st.secrets.get("DISCOGS_API_TOKEN", "")
-GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN", "")
-GITHUB_REPO = st.secrets.get("GITHUB_REPO", "")
-
-if not all([DISCOGS_API_TOKEN, GITHUB_TOKEN, GITHUB_REPO]):
-    st.error("🔐 One or more required Streamlit secrets are missing or blank. Please verify all secrets are set.")
+if not all(["DISCOGS_API_TOKEN" in st.secrets, "GITHUB_TOKEN" in st.secrets, "GITHUB_REPO" in st.secrets]):
+    st.error("🔐 One or more required Streamlit secrets are missing. Please check your settings.")
     st.stop()
 
 DISCOGS_API_TOKEN = st.secrets["DISCOGS_API_TOKEN"]
