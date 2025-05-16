@@ -191,17 +191,18 @@ if search_query:
             </style>
         """, unsafe_allow_html=True)
 
-        theme_icon_script = """
-        <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const logos = document.querySelectorAll('[data-discogs-icon]');
-            const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            logos.forEach(el => {
-                el.src = isDark ? '{}'.replace("\\", "") : '{}'.replace("\\", "");
-            });
-        });
-        </script>
-        """.format(DISCOGS_ICON_WHITE, DISCOGS_ICON_BLACK)
+        theme_icon_script = f"""
+<script>
+document.addEventListener('DOMContentLoaded', function () {{
+    const logos = document.querySelectorAll('[data-discogs-icon]');
+    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    logos.forEach(el => {{
+        el.src = isDark ? '{DISCOGS_ICON_WHITE}' : '{DISCOGS_ICON_BLACK}';
+    }});
+}});
+</script>
+"""
+
         st.markdown(theme_icon_script, unsafe_allow_html=True)
 
         for release_id, group in results.groupby('release_id'):
