@@ -9,10 +9,7 @@ try:
     DISCOGS_API_TOKEN = st.secrets["DISCOGS_API_TOKEN"]
     GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
     GITHUB_REPO = st.secrets["GITHUB_REPO"]
-except Exception:
-    st.warning("🔐 Unable to access Streamlit secrets. Please verify your configuration.")
-    st.stop()
-
+except Exception as e:
 st.warning("🔐 Unable to access Streamlit secrets. Please verify your configuration.")
 st.stop()
 GITHUB_BRANCH = 'main'
