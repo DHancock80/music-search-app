@@ -4,6 +4,7 @@ import requests
 import os
 import shutil
 import re
+import unicodedata
 from datetime import datetime
 import streamlit as st
 
@@ -84,23 +85,27 @@ def upload_to_github(file_path, repo, token, branch, commit_message):
     response = requests.put(api_url, headers=headers, json=data)
     return response
 
+def normalize_text(text):
+    if pd.isna(text):
+        return ''
+    text = str(text)
+    text = unicodedata.normalize('NFKD', text)
+    return ''.join([c for c in text if not unicodedata.combining(c)]).lower()
+
 def clean_artist_name(artist):
-    if pd.isna(artist): return ''
-    artist = artist.lower()
-    artist = re.sub(r'[\*\(\)\[#]', '', artist)
-    artist = re.sub(r'\s*(feat\.|ft\.|featuring)\s*', ' ', artist)
-    artist = artist.replace('&', ' ').replace(',', ' ')
-    return re.sub(r'\s+', ' ', artist).strip()
+    return normalize_text(re.sub(r'[\*\(\)\[#]', '', re.sub(r'\s*(feat\.|ft\.|featuring)\s*', ' ', str(artist).replace('&', ' ').replace(',', ' '))))
 
 def search(df, query, search_type):
-    query = query.lower().strip()
+    query_norm = normalize_text(query.strip())
     if search_type == 'Song Title':
-        return df[df['Track Title'].str.lower().str.contains(query, na=False)]
+        df['track_norm'] = df['Track Title'].apply(normalize_text)
+        return df[df['track_norm'].str.contains(query_norm, na=False)]
     elif search_type == 'Artist':
         df['artist_clean'] = df['Artist'].apply(clean_artist_name)
-        return df[df['artist_clean'].str.contains(query, na=False)]
+        return df[df['artist_clean'].str.contains(query_norm, na=False)]
     elif search_type == 'Album':
-        return df[df['Title'].str.lower().str.contains(query, na=False)]
+        df['title_norm'] = df['Title'].apply(normalize_text)
+        return df[df['title_norm'].str.contains(query_norm, na=False)]
     return df
 
 def fetch_discogs_cover(release_id):
