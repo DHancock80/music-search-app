@@ -218,7 +218,7 @@ if search_query:
                     </a>
                 """, unsafe_allow_html=True)
 
-                if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
+if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
     st.session_state['open_expander_id'] = release_id if st.session_state.get('open_expander_id') != release_id else None
 
             with cols[1]:
