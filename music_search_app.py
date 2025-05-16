@@ -31,13 +31,22 @@ if 'open_expander_id' not in st.session_state:
 @st.cache_data
 def load_data():
     try:
-        df = pd.read_csv(CSV_FILE, encoding='latin1')
+        try:
+            df = pd.read_csv(CSV_FILE, encoding='utf-8')
+        except UnicodeDecodeError:
+            st.warning("UTF-8 decoding failed, falling back to latin1.")
+            df = pd.read_csv(CSV_FILE, encoding='latin1')
+
         if df.columns[0].startswith("Unnamed"):
             df = df.drop(columns=[df.columns[0]])
         if 'cover_art' not in df.columns:
             df['cover_art'] = None
         try:
-            overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1', on_bad_lines='skip')
+            try:
+                overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='utf-8')
+            except UnicodeDecodeError:
+                st.warning("UTF-8 decoding failed for overrides, using latin1.")
+                overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1', on_bad_lines='skip')
             overrides.columns = overrides.columns.str.strip().str.lower()
             if not {'release_id', 'cover_url'}.issubset(overrides.columns):
                 st.warning("Overrides file missing required columns. Skipping override merge.")
@@ -120,14 +129,14 @@ def update_cover_override(release_id, new_url):
         st.error(f"Backup failed: {e}")
 
     try:
-        overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
+        overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='utf-8')
         overrides.columns = overrides.columns.str.strip().str.lower()
     except:
         overrides = pd.DataFrame(columns=['release_id', 'cover_url'])
 
     overrides = overrides[overrides['release_id'] != release_id]
     overrides = pd.concat([overrides, pd.DataFrame([{'release_id': release_id, 'cover_url': new_url}])], ignore_index=True)
-    overrides.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
+    overrides.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='utf-8')
     upload_to_github(COVER_OVERRIDES_FILE, GITHUB_REPO, GITHUB_TOKEN, GITHUB_BRANCH, f"Update cover for {release_id}")
     st.success("✅ Custom cover art uploaded and synced to GitHub!")
     st.cache_data.clear()
@@ -135,10 +144,10 @@ def update_cover_override(release_id, new_url):
 
 def reset_cover_override(release_id):
     try:
-        overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='latin1')
+        overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='utf-8')
         overrides.columns = overrides.columns.str.strip().str.lower()
         overrides = overrides[overrides['release_id'] != release_id]
-        overrides.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='latin1')
+        overrides.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='utf-8')
         upload_to_github(COVER_OVERRIDES_FILE, GITHUB_REPO, GITHUB_TOKEN, GITHUB_BRANCH, f"Reset cover for {release_id}")
         st.success("✅ Reverted to original cover art and synced to GitHub!")
         st.cache_data.clear()
@@ -245,11 +254,10 @@ if search_query:
                         with cols[1]:
                             if st.form_submit_button("Revert to original Cover Art"):
                                 reset_cover_override(release_id)
-                                    
-            else:
-                with st.expander("Click to view tracklist"):
-                    st.dataframe(group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
-                        'Track Title': 'Song', 'CD': 'Disc', 'Track Number': 'Track'
-                    }).reset_index(drop=True), use_container_width=True, hide_index=True)
+
+            with st.expander("Click to view tracklist"):
+                st.dataframe(group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
+                    'Track Title': 'Song', 'CD': 'Disc', 'Track Number': 'Track'
+                }).reset_index(drop=True), use_container_width=True, hide_index=True)
 else:
     st.caption("Please enter a search query above.")
