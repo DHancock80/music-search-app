@@ -220,12 +220,10 @@ if search_query:
                 """, unsafe_allow_html=True)
 
                 if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
-                    st.session_state['open_expander_id'] = (
-                        release_id if st.session_state.get('open_expander_id') != release_id else None
-                    )
+                    st.session_state['open_expander_id'] = release_id if st.session_state.get('open_expander_id') != release_id else None
 
             with cols[1]:
-                discogs_icon = '<img data-discogs-icon src="https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_white.png" width="24" style="margin-left:10px;" />'
+                discogs_icon = f'<img data-discogs-icon src="{DISCOGS_ICON_WHITE}" width="24" style="margin-left:10px;" />'
                 st.markdown(f"""
                     <div style="display:flex;justify-content:space-between;align-items:center;">
                         <div style="font-size:20px;font-weight:600;">{title}</div>
@@ -234,7 +232,8 @@ if search_query:
                     <div><strong>Artist:</strong> {artist}</div>
                 """, unsafe_allow_html=True)
 
-            if st.session_state.get('open_expander_id') == release_id:
+            is_expanded = st.session_state.get('open_expander_id') == release_id
+            if is_expanded:
                 with st.expander("Update Cover Art", expanded=True):
                     with st.form(f"form_{release_id}"):
                         new_url = st.text_input("Custom cover art URL:", key=f"url_{release_id}")
@@ -248,7 +247,7 @@ if search_query:
             else:
                 with st.expander("Click to view tracklist"):
                     st.dataframe(group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
-                    'Track Title': 'Song', 'CD': 'Disc', 'Track Number': 'Track'
-                }).reset_index(drop=True), use_container_width=True, hide_index=True)
+                        'Track Title': 'Song', 'CD': 'Disc', 'Track Number': 'Track'
+                    }).reset_index(drop=True), use_container_width=True, hide_index=True)
 else:
     st.caption("Please enter a search query above.")
