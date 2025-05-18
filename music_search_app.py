@@ -72,7 +72,7 @@ def search(df, query, search_type):
     if search_type == 'Song Title':
         return df[df['Track Title'].apply(normalize).str.contains(norm_query, na=False)]
     elif search_type == 'Artist':
-        mask = df['Artist'].apply(lambda artists: any(norm_query in clean_artist_variants(str(artists))) if pd.notna(artists) else False)
+        mask = df['Artist'].apply(lambda artists: any(norm_query in variant for variant in clean_artist_variants(str(artists))) if pd.notna(artists) else False)
         return df[mask]
     elif search_type == 'Album':
         return df[df['Title'].apply(normalize).str.contains(norm_query, na=False)]
