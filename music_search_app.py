@@ -7,6 +7,7 @@ import re
 import unicodedata
 from datetime import datetime
 import streamlit as st
+from rapidfuzz import fuzz
 
 # Constants
 DISCOGS_ICON_WHITE = 'https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_white.png'
@@ -28,6 +29,16 @@ GITHUB_BRANCH = 'main'
 
 if 'open_expander_id' not in st.session_state:
     st.session_state['open_expander_id'] = None
+
+def normalize(text):
+    if pd.isna(text): return ''
+    text = str(text).lower()
+    text = ''.join(c for c in unicodedata.normalize('NFKD', text) if not unicodedata.combining(c))
+    text = re.sub(r'[^a-z0-9]+', ' ', text)
+    return text.strip()
+
+def fuzzy_match(text, query, threshold=85):
+    return fuzz.partial_ratio(normalize(text), normalize(query)) >= threshold
 
 @st.cache_data
 def load_data():
@@ -54,41 +65,6 @@ def load_data():
         st.error(f"Error loading the CSV file: {e}")
         df = pd.DataFrame()
     return df
-
-def normalize(text):
-    if pd.isna(text): return ''
-    text = str(text).lower()
-    text = ''.join(c for c in unicodedata.normalize('NFKD', text) if not unicodedata.combining(c))
-    return text
-
-def clean_artist_variants(artist):
-    artist = normalize(artist)
-    artist = re.sub(r'\s*(feat\.|ft\.|featuring)\s*', ' ', artist)
-    artist = re.sub(r'[,/&]+', ' ', artist)
-    return re.sub(r'\s+', ' ', artist).strip().split()
-
-def search(df, query, search_type):
-    norm_query = normalize(query.strip())
-    if search_type == 'Song Title':
-        return df[df['Track Title'].apply(normalize).str.contains(norm_query, na=False)]
-    elif search_type == 'Artist':
-        mask = df['Artist'].apply(lambda artists: any(norm_query in clean_artist_variants(str(artists))) if pd.notna(artists) else False)
-        return df[mask]
-    elif search_type == 'Album':
-        return df[df['Title'].apply(normalize).str.contains(norm_query, na=False)]
-    return df
-
-def fetch_discogs_cover(release_id):
-    headers = {"Authorization": f"Discogs token={DISCOGS_API_TOKEN}"}
-    try:
-        response = requests.get(f"https://api.discogs.com/releases/{release_id}", headers=headers)
-        if response.status_code == 200:
-            data = response.json()
-            if 'images' in data and len(data['images']) > 0:
-                return data['images'][0]['uri']
-    except Exception as e:
-        st.warning(f"Discogs fetch failed for {release_id}: {e}")
-    return None
 
 def upload_to_github(file_path, repo, token, branch, commit_message):
     api_url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
@@ -160,7 +136,7 @@ search_type = st.radio('Search by:', ['Song Title', 'Artist', 'Album'], horizont
 
 if search_query:
     df = load_data()
-    results = search(df, search_query, search_type)
+    results = df[df[search_type.replace(' ', '')].apply(lambda x: fuzzy_match(str(x), search_query))] if not df.empty else pd.DataFrame()
 
     unique_releases = results[['release_id', 'Format']].drop_duplicates()
     format_counts = {
@@ -197,23 +173,24 @@ if search_query:
             </style>
         """, unsafe_allow_html=True)
 
-        st.markdown(f"""
-            <script>
-            document.addEventListener('DOMContentLoaded', function () {{
-                const logos = document.querySelectorAll('[data-discogs-icon]');
-                const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                logos.forEach(el => {{
-                    el.src = isDark ? '{DISCOGS_ICON_WHITE}' : '{DISCOGS_ICON_BLACK}';
-                }});
+        theme_icon_script = f"""
+        <script>
+        document.addEventListener('DOMContentLoaded', function () {{
+            const logos = document.querySelectorAll('[data-discogs-icon]');
+            const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            logos.forEach(el => {{
+                el.src = isDark ? '{DISCOGS_ICON_WHITE}' : '{DISCOGS_ICON_BLACK}';
             }});
-            </script>
-        """, unsafe_allow_html=True)
+        }});
+        </script>
+        """
+        st.markdown(theme_icon_script, unsafe_allow_html=True)
 
         for release_id, group in results.groupby('release_id'):
             first_row = group.iloc[0]
             title = first_row['Title']
             artist = "Various Artists" if group['Artist'].nunique() > 1 else group['Artist'].iloc[0]
-            cover_url = first_row.get('cover_art_final') or fetch_discogs_cover(release_id) or PLACEHOLDER_COVER
+            cover_url = first_row.get('cover_art_final') or PLACEHOLDER_COVER
 
             cols = st.columns([1, 5])
             with cols[0]:
@@ -246,10 +223,10 @@ if search_query:
                         with cols[1]:
                             if st.form_submit_button("Revert to original Cover Art"):
                                 reset_cover_override(release_id)
-
-            with st.expander("Click to view tracklist"):
-                st.dataframe(group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
-                    'Track Title': 'Song', 'CD': 'Disc', 'Track Number': 'Track'
-                }).reset_index(drop=True), use_container_width=True, hide_index=True)
+            else:
+                with st.expander("Click to view tracklist"):
+                    st.dataframe(group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
+                        'Track Title': 'Song', 'CD': 'Disc', 'Track Number': 'Track'
+                    }).reset_index(drop=True), use_container_width=True, hide_index=True)
 else:
     st.caption("Please enter a search query above.")
