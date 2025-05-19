@@ -95,8 +95,7 @@ search_type = st.radio("Search by:", ["Song Title", "Artist", "Album"], horizont
 suggestion_column = "Track Title" if search_type == "Song Title" else ("Artist" if search_type == "Artist" else "Title")
 df_suggestions = pd.read_csv(CSV_FILE, encoding='utf-8', on_bad_lines='skip') if os.path.exists(CSV_FILE) else pd.DataFrame()
 search_query = st.text_input("Enter your search:", "")
-
-sort_option = st.selectbox("Sort results by:", ["Alphabetical (A-Z)", "Release Year (Newest First)"])
+sort_option = st.selectbox("Sort results by:", ["Alphabetical (A-Z)", "Release Year (Newest First)", "Release Year (Oldest First)"])
 
 if search_query:
     suggestions = get_auto_suggestions(df_suggestions, suggestion_column, search_query)
@@ -117,7 +116,10 @@ if search_query:
                 results = results.sort_values(by="Title")
             elif "Year" in results.columns:
                 results["Year"] = pd.to_numeric(results["Year"], errors='coerce')
-                results = results.sort_values(by=["Year", "Title"], ascending=[False, True])
+                if sort_option == "Release Year (Newest First)":
+                    results = results.sort_values(by=["Year", "Title"], ascending=[False, True])
+                elif sort_option == "Release Year (Oldest First)":
+                    results = results.sort_values(by=["Year", "Title"], ascending=[True, True])
 
             st.success(f"{len(results)} results found.")
 
