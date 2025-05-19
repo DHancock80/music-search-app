@@ -40,6 +40,29 @@ def normalize(text):
 def fuzzy_match(text, query, threshold=85):
     return fuzz.partial_ratio(normalize(text), normalize(query)) >= threshold
 
+def upload_to_github(file_path, repo, token, branch, commit_message):
+    api_url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+    with open(file_path, "rb") as f:
+        content = f.read()
+    content_b64 = base64.b64encode(content).decode()
+    get_resp = requests.get(api_url, headers=headers, params={"ref": branch})
+    sha = get_resp.json().get('sha') if get_resp.status_code == 200 else None
+    data = {
+        "message": commit_message,
+        "content": content_b64,
+        "branch": branch
+    }
+    if sha:
+        data["sha"] = sha
+    response = requests.put(api_url, headers=headers, json=data)
+    if response.status_code not in [200, 201]:
+        st.error(f"❌ GitHub upload failed: {response.status_code} - {response.text}")
+    return response
+
 def update_cover_override(release_id, new_url):
     try:
         if not os.path.exists(BACKUP_FOLDER):
@@ -112,12 +135,10 @@ def load_data():
                 overrides = overrides.drop_duplicates(subset='release_id', keep='last')
                 df = df.merge(overrides, on='release_id', how='left', suffixes=('', '_override'))
                 df['cover_art_final'] = df['cover_url'].combine_first(df['cover_art'])
-
                 for idx, row in df[df['cover_art_final'].isna()].iterrows():
                     new_cover = fetch_discogs_cover(row['release_id'])
                     if new_cover:
                         df.at[idx, 'cover_art_final'] = new_cover
-
         except Exception as e:
             st.warning(f"Could not read cover overrides: {e}")
             df['cover_art_final'] = df['cover_art']
@@ -126,30 +147,7 @@ def load_data():
         df = pd.DataFrame()
     return df
 
-def upload_to_github(file_path, repo, token, branch, commit_message):
-    api_url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    with open(file_path, "rb") as f:
-        content = f.read()
-    content_b64 = base64.b64encode(content).decode()
-    get_resp = requests.get(api_url, headers=headers, params={"ref": branch})
-    sha = get_resp.json()['sha'] if get_resp.status_code == 200 else None
-    data = {
-        "message": commit_message,
-        "content": content_b64,
-        "branch": branch
-    }
-    if sha:
-        data["sha"] = sha
-    response = requests.put(api_url, headers=headers, json=data)
-    if response.status_code not in [200, 201]:
-        st.error(f"❌ GitHub upload failed: {response.status_code} - {response.text}")
-    return response
-
-# === UI Setup ===
+# === UI ===
 st.title("Music Search App")
 search_query = st.text_input("Enter your search:", "")
 search_type = st.radio("Search by:", ["Song Title", "Artist", "Album"], horizontal=True)
@@ -168,6 +166,32 @@ if search_query:
     if results.empty:
         st.warning("No results found.")
     else:
+        st.markdown("""
+        <style>
+        div[data-testid="stButton"] > button {
+            background: none;
+            border: none;
+            padding: 0;
+            font-size: 14px;
+            text-decoration: underline;
+            color: var(--text-color);
+            cursor: pointer;
+        }
+        div[data-testid="stButton"] > button:hover {
+            color: var(--primary-color);
+        }
+        </style>
+        <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const logos = document.querySelectorAll('[data-discogs-icon]');
+            const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            logos.forEach(el => {
+                el.src = isDark ? '{DISCOGS_ICON_WHITE}' : '{DISCOGS_ICON_BLACK}';
+            });
+        });
+        </script>
+        """, unsafe_allow_html=True)
+
         for release_id, group in results.groupby('release_id'):
             first = group.iloc[0]
             cover_url = first.get('cover_art_final') or PLACEHOLDER_COVER
@@ -176,7 +200,11 @@ if search_query:
 
             cols = st.columns([1, 5])
             with cols[0]:
-                st.image(cover_url, width=120)
+                st.markdown(f"""
+                    <a href="{cover_url}" target="_blank">
+                        <img src="{cover_url}" width="120" style="border-radius:8px;" />
+                    </a>
+                """, unsafe_allow_html=True)
                 if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
                     st.session_state['open_expander_id'] = release_id if st.session_state['open_expander_id'] != release_id else None
 
