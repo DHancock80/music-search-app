@@ -85,7 +85,7 @@ def upload_to_github(file_path, repo, token, branch, commit_message):
     if sha:
         data["sha"] = sha
     response = requests.put(api_url, headers=headers, json=data)
-        if response.status_code not in [200, 201]:
+    if response.status_code not in [200, 201]:
         st.error(f"❌ GitHub upload failed: {response.status_code} - {response.text}")
     else:
         st.write("✅ GitHub upload succeeded.")
