@@ -134,17 +134,18 @@ st.title('Music Search App')
 search_query = st.text_input('Enter your search:', '')
 search_type = st.radio('Search by:', ['Song Title', 'Artist', 'Album'], horizontal=True)
 
+search_column_map = {
+    'Song Title': 'Track Title',
+    'Artist': 'Artist',
+    'Album': 'Title'
+}
+
 if search_query:
     df = load_data()
-    results = df[df[search_type.replace(' ', '')].apply(lambda x: fuzzy_match(str(x), search_query))] if not df.empty else pd.DataFrame()
+    search_column = search_column_map.get(search_type)
+    results = df[df[search_column].apply(lambda x: fuzzy_match(str(x), search_query))] if not df.empty else pd.DataFrame()
 
-    unique_releases = results[['release_id', 'Format']].drop_duplicates()
-    format_counts = {
-        'All': len(results),
-        'Album': unique_releases['Format'].str.contains("album|compilation|comp", case=False, na=False).sum(),
-        'Single': unique_releases['Format'].str.contains("single", case=False, na=False).sum(),
-        'Video': unique_releases['Format'].str.contains("video", case=False, na=False).sum()
-    }
+    # (everything below this remains unchanged)
 
     format_filter = st.radio('Format:', [f"All ({format_counts['All']})", f"Album ({format_counts['Album']})", f"Single ({format_counts['Single']})", f"Video ({format_counts['Video']})"], horizontal=True)
     format_clean = format_filter.split()[0]
