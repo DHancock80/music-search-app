@@ -85,6 +85,10 @@ def upload_to_github(file_path, repo, token, branch, commit_message):
     if sha:
         data["sha"] = sha
     response = requests.put(api_url, headers=headers, json=data)
+        if response.status_code not in [200, 201]:
+        st.error(f"❌ GitHub upload failed: {response.status_code} - {response.text}")
+    else:
+        st.write("✅ GitHub upload succeeded.")
     return response
 
 def update_cover_override(release_id, new_url):
@@ -94,6 +98,7 @@ def update_cover_override(release_id, new_url):
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         backup_file = os.path.join(BACKUP_FOLDER, f"cover_overrides_backup_{timestamp}.csv")
         shutil.copy(COVER_OVERRIDES_FILE, backup_file)
+        st.write(f"🔄 Backup created at: {backup_file}")
         backups = sorted(os.listdir(BACKUP_FOLDER))
         if len(backups) > 10:
             os.remove(os.path.join(BACKUP_FOLDER, backups[0]))
@@ -109,6 +114,8 @@ def update_cover_override(release_id, new_url):
     overrides = overrides[overrides['release_id'] != release_id]
     overrides = pd.concat([overrides, pd.DataFrame([{'release_id': release_id, 'cover_url': new_url}])], ignore_index=True)
     overrides.to_csv(COVER_OVERRIDES_FILE, index=False, encoding='utf-8')
+    st.write("🔍 Debug: New row added for release_id:", release_id)
+    st.write("🔍 Debug: Total override rows now:", len(overrides))
     upload_to_github(COVER_OVERRIDES_FILE, GITHUB_REPO, GITHUB_TOKEN, GITHUB_BRANCH, f"Update cover for {release_id}")
     st.success("✅ Custom cover art uploaded and synced to GitHub!")
     st.cache_data.clear()
