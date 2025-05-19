@@ -66,6 +66,20 @@ def load_data():
         df = pd.DataFrame()
     return df
 
+def fetch_discogs_cover(release_id):
+    headers = {"Authorization": f"Discogs token={DISCOGS_API_TOKEN}"}
+    try:
+        response = requests.get(f"https://api.discogs.com/releases/{release_id}", headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            if 'images' in data and len(data['images']) > 0:
+                cover_url = data['images'][0]['uri']
+                update_cover_override(release_id, cover_url)
+                return cover_url
+    except Exception as e:
+        st.warning(f"Discogs fetch failed for {release_id}: {e}")
+    return None
+
 def upload_to_github(file_path, repo, token, branch, commit_message):
     api_url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
     headers = {
@@ -90,20 +104,6 @@ def upload_to_github(file_path, repo, token, branch, commit_message):
     else:
         st.write("✅ GitHub upload succeeded.")
     return response
-
-def update_cover_override(release_id, new_url):
-    try:
-        if not os.path.exists(BACKUP_FOLDER):
-            os.makedirs(BACKUP_FOLDER)
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        backup_file = os.path.join(BACKUP_FOLDER, f"cover_overrides_backup_{timestamp}.csv")
-        shutil.copy(COVER_OVERRIDES_FILE, backup_file)
-        st.write(f"🔄 Backup created at: {backup_file}")
-        backups = sorted(os.listdir(BACKUP_FOLDER))
-        if len(backups) > 10:
-            os.remove(os.path.join(BACKUP_FOLDER, backups[0]))
-    except Exception as e:
-        st.error(f"Backup failed: {e}")
 
     try:
         overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='utf-8')
