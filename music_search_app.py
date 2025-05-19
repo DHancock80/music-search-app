@@ -40,6 +40,20 @@ def normalize(text):
 def fuzzy_match(text, query, threshold=85):
     return fuzz.partial_ratio(normalize(text), normalize(query)) >= threshold
 
+def fetch_discogs_cover(release_id):
+    headers = {"Authorization": f"Discogs token={DISCOGS_API_TOKEN}"}
+    try:
+        response = requests.get(f"https://api.discogs.com/releases/{release_id}", headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            if 'images' in data and len(data['images']) > 0:
+                cover_url = data['images'][0]['uri']
+                update_cover_override(release_id, cover_url)
+                return cover_url
+    except Exception as e:
+        st.warning(f"Discogs fetch failed for {release_id}: {e}")
+    return None
+
 @st.cache_data
 def load_data():
     try:
@@ -58,6 +72,13 @@ def load_data():
                 overrides = overrides.drop_duplicates(subset='release_id', keep='last')
                 df = df.merge(overrides, on='release_id', how='left', suffixes=('', '_override'))
                 df['cover_art_final'] = df['cover_url'].combine_first(df['cover_art'])
+
+                # Ensure missing covers are fetched and saved
+                for idx, row in df[df['cover_art_final'].isna()].iterrows():
+                    new_cover = fetch_discogs_cover(row['release_id'])
+                    if new_cover:
+                        df.at[idx, 'cover_art_final'] = new_cover
+
         except Exception as e:
             st.warning(f"Could not read cover overrides: {e}")
             df['cover_art_final'] = df['cover_art']
@@ -65,20 +86,6 @@ def load_data():
         st.error(f"Error loading the CSV file: {e}")
         df = pd.DataFrame()
     return df
-
-def fetch_discogs_cover(release_id):
-    headers = {"Authorization": f"Discogs token={DISCOGS_API_TOKEN}"}
-    try:
-        response = requests.get(f"https://api.discogs.com/releases/{release_id}", headers=headers)
-        if response.status_code == 200:
-            data = response.json()
-            if 'images' in data and len(data['images']) > 0:
-                cover_url = data['images'][0]['uri']
-                update_cover_override(release_id, cover_url)
-                return cover_url
-    except Exception as e:
-        st.warning(f"Discogs fetch failed for {release_id}: {e}")
-    return None
 
 def upload_to_github(file_path, repo, token, branch, commit_message):
     api_url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
