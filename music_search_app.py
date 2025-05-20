@@ -40,46 +40,34 @@ def normalize(text):
 def fuzzy_match(text, query, threshold=85):
     return fuzz.partial_ratio(normalize(text), normalize(query)) >= threshold
 
-# Fix Discogs icon dynamically on dark/light theme
+# Fix Discogs icon dynamically on dark/light theme using CSS
 st.markdown(f"""
-    <script>
-    function updateDiscogsIcons() {{
-        const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const icons = document.querySelectorAll('[data-discogs-icon]');
-        icons.forEach(el => {{
-            const newSrc = isDark ? '{DISCOGS_ICON_WHITE}' : '{DISCOGS_ICON_BLACK}';
-            if (el.src !== newSrc) {{
-                el.src = newSrc;
-            }}
-        }});
-    }}
-    const discogsThemeHandler = () => updateDiscogsIcons();
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', discogsThemeHandler);
-    window.addEventListener('load', updateDiscogsIcons);
-    const observer = new MutationObserver(updateDiscogsIcons);
-    observer.observe(document.body, {{ childList: true, subtree: true }});
-    updateDiscogsIcons();
-    </script>
-""", unsafe_allow_html=True)
-
-st.markdown("""
     <style>
-    img[data-discogs-icon] {
+    @media (prefers-color-scheme: dark) {{
+        .discogs-icon {{
+            content: url('{DISCOGS_ICON_WHITE}');
+        }}
+    }}
+    @media (prefers-color-scheme: light) {{
+        .discogs-icon {{
+            content: url('{DISCOGS_ICON_BLACK}');
+        }}
+    }}
+    img.discogs-icon {{
         transition: filter 0.3s ease;
-    }
+    }}
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("""
-    <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const icons = document.querySelectorAll('[data-discogs-icon]');
-        const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        icons.forEach(el => {
-            el.src = isDark ? "{DISCOGS_ICON_WHITE}" : "{DISCOGS_ICON_BLACK}";
-        });
-    });
-    </script>
+# Example Discogs icon usage (add wherever rendering results)
+st.markdown(f"""
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-size:20px;font-weight:600;">Example Album</div>
+        <a href="https://www.discogs.com/release/12345" target="_blank">
+            <img class="discogs-icon" width="24" style="margin-left:10px;" />
+        </a>
+    </div>
+    <div><strong>Artist:</strong> Example Artist</div>
 """, unsafe_allow_html=True)
 
 def upload_to_github(file_path, repo, token, branch, commit_message):
