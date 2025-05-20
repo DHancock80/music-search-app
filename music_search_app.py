@@ -50,11 +50,11 @@ st.markdown(f"""
             el.src = isDark ? '{DISCOGS_ICON_WHITE}' : '{DISCOGS_ICON_BLACK}';
         }});
     }}
-    window.addEventListener('load', updateDiscogsIcons);
+    updateDiscogsIcons();
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateDiscogsIcons);
     const observer = new MutationObserver(updateDiscogsIcons);
     observer.observe(document.body, {{ childList: true, subtree: true }});
-    setTimeout(updateDiscogsIcons, 200);
+    setInterval(updateDiscogsIcons, 200);
     </script>
 """, unsafe_allow_html=True)
 
