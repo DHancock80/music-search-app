@@ -240,9 +240,8 @@ if search_query:
                 st.markdown(f"""
                     <div style="display:flex;justify-content:space-between;align-items:center;">
                         <div style="font-size:20px;font-weight:600;">{title}</div>
-                        <a href="https://www.discogs.com/release/{release_id}" target="_blank">
-                            <img data-discogs-icon src="{DISCOGS_ICON_WHITE}" width="24" style="margin-left:10px;" />
-                        </a>
+          st.markdown(render_discogs_link(release_id), unsafe_allow_html=True)
+
                     </div>
                     <div><strong>Artist:</strong> {artist}</div>
                 """, unsafe_allow_html=True)
