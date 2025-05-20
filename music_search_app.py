@@ -47,14 +47,18 @@ st.markdown(f"""
         const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
         const icons = document.querySelectorAll('[data-discogs-icon]');
         icons.forEach(el => {{
-            el.src = isDark ? '{DISCOGS_ICON_WHITE}' : '{DISCOGS_ICON_BLACK}';
+            const newSrc = isDark ? '{DISCOGS_ICON_WHITE}' : '{DISCOGS_ICON_BLACK}';
+            if (el.src !== newSrc) {{
+                el.src = newSrc;
+            }}
         }});
     }}
-    updateDiscogsIcons();
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateDiscogsIcons);
+    const discogsThemeHandler = () => updateDiscogsIcons();
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', discogsThemeHandler);
+    window.addEventListener('load', updateDiscogsIcons);
     const observer = new MutationObserver(updateDiscogsIcons);
     observer.observe(document.body, {{ childList: true, subtree: true }});
-    setInterval(updateDiscogsIcons, 200);
+    updateDiscogsIcons();
     </script>
 """, unsafe_allow_html=True)
 
