@@ -29,6 +29,9 @@ GITHUB_BRANCH = 'main'
 
 if 'open_expander_id' not in st.session_state:
     st.session_state['open_expander_id'] = None
+if 'results_summary' not in st.session_state:
+    st.session_state['results_summary'] = {'All': 0, 'Album': 0, 'Single': 0, 'Video': 0}
+
 
 def normalize(text):
     if pd.isna(text): return ''
@@ -37,8 +40,10 @@ def normalize(text):
     text = re.sub(r'[^a-z0-9]+', ' ', text)
     return text.strip()
 
+
 def fuzzy_match(text, query, threshold=85):
     return fuzz.partial_ratio(normalize(text), normalize(query)) >= threshold
+
 
 @st.cache_data
 def get_auto_suggestions(df, field, query, limit=10):
@@ -46,6 +51,7 @@ def get_auto_suggestions(df, field, query, limit=10):
     matches = df[field].dropna().unique()
     ranked = sorted(matches, key=lambda x: fuzz.partial_ratio(norm_query, normalize(x)), reverse=True)
     return ranked[:limit]
+
 
 @st.cache_data
 def load_data():
@@ -68,6 +74,7 @@ def load_data():
         df = pd.DataFrame()
     return df
 
+
 def upload_to_github(file_path, repo, token, branch, commit_message):
     api_url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
     headers = {
@@ -88,6 +95,7 @@ def upload_to_github(file_path, repo, token, branch, commit_message):
         data["sha"] = sha
     response = requests.put(api_url, headers=headers, json=data)
     return response
+
 
 def update_cover_override(release_id, new_url):
     try:
@@ -116,6 +124,7 @@ def update_cover_override(release_id, new_url):
     st.cache_data.clear()
     st.rerun()
 
+
 def reset_cover_override(release_id):
     try:
         overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='utf-8')
@@ -128,3 +137,52 @@ def reset_cover_override(release_id):
         st.rerun()
     except Exception as e:
         st.error(f"Reset failed: {e}")
+
+
+# === UI Enhancements and Sorting Logic ===
+df = load_data()
+search_type = st.radio("Search by:", ["Song Title", "Artist", "Album"], horizontal=True)
+query = st.text_input("Enter your search:", "")
+sort_option = st.selectbox("Sort results by:", ["Alphabetical (A-Z)", "Release Year (Newest First)", "Release Year (Oldest First)"])
+
+# Auto suggestions (before search)
+if query and len(query) >= 3:
+    suggestions = get_auto_suggestions(df, {'Song Title': 'Track Title', 'Artist': 'Artist', 'Album': 'Title'}[search_type], query)
+    if suggestions:
+        st.caption("Suggestions:")
+        st.write(", ".join(suggestions))
+
+# Apply search
+if query:
+    field_map = {'Song Title': 'Track Title', 'Artist': 'Artist', 'Album': 'Title'}
+    field = field_map[search_type]
+    results = df[df[field].apply(lambda x: fuzzy_match(str(x), query))]
+
+    # Sort results
+    if sort_option == "Alphabetical (A-Z)":
+        results = results.sort_values(by="Title", na_position="last")
+    elif sort_option == "Release Year (Newest First)":
+        results = results.sort_values(by="Year", ascending=False, na_position="last")
+    elif sort_option == "Release Year (Oldest First)":
+        results = results.sort_values(by="Year", ascending=True, na_position="last")
+
+    st.success(f"{len(results)} results found.")
+
+    for release_id, group in results.groupby("release_id"):
+        release = group.iloc[0]
+        st.subheader(release['Title'])
+        st.text(f"Artist: {release['Artist']}")
+        st.image(release['cover_art_final'] or PLACEHOLDER_COVER, width=150)
+
+        with st.expander("Click to view tracklist"):
+            st.dataframe(group[['Track Title', 'Artist', 'CD', 'Track Number']])
+
+        with st.expander("Update Cover Art"):
+            new_url = st.text_input("Custom cover art URL:", key=f"url_{release_id}")
+            cols = st.columns(2)
+            with cols[0]:
+                if st.button("Upload custom URL", key=f"upload_{release_id}"):
+                    update_cover_override(release_id, new_url)
+            with cols[1]:
+                if st.button("Revert to original Cover Art", key=f"revert_{release_id}"):
+                    reset_cover_override(release_id)
