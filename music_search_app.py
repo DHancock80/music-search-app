@@ -140,6 +140,7 @@ def reset_cover_override(release_id):
 
 
 # === UI Enhancements and Sorting Logic ===
+st.title("Music Search App")
 df = load_data()
 search_type = st.radio("Search by:", ["Song Title", "Artist", "Album"], horizontal=True)
 query = st.text_input("Enter your search:", "")
@@ -186,3 +187,5 @@ if query:
             with cols[1]:
                 if st.button("Revert to original Cover Art", key=f"revert_{release_id}"):
                     reset_cover_override(release_id)
+else:
+    st.caption("Please enter a search query above.")
