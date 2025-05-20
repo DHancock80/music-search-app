@@ -58,17 +58,16 @@ st.markdown(f"""
     </script>
 """, unsafe_allow_html=True)
 
-# Example Discogs icon usage (add wherever rendering results)
-st.markdown(f"""
-    <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div style="font-size:20px;font-weight:600;">Example Album</div>
-        <a href="https://www.discogs.com/release/12345" target="_blank">
-            <img class="discogs-icon-white" src="{DISCOGS_ICON_WHITE}" width="24" style="margin-left:10px;" />
-            <img class="discogs-icon-black" src="{DISCOGS_ICON_BLACK}" width="24" style="margin-left:10px;" />
+# Use this in your rendering loop:
+def render_discogs_link(release_id):
+    return f"""
+        <a href='https://www.discogs.com/release/{release_id}' target='_blank'>
+            <img class='discogs-icon-white' src='{DISCOGS_ICON_WHITE}' width='24' style='margin-left:10px;' />
+            <img class='discogs-icon-black' src='{DISCOGS_ICON_BLACK}' width='24' style='margin-left:10px;' />
         </a>
-    </div>
-    <div><strong>Artist:</strong> Example Artist</div>
-""", unsafe_allow_html=True)
+    """
+
+# Replace any inline Discogs <a>...</a> blocks with {render_discogs_link(release_id)} where needed.
 
 def upload_to_github(file_path, repo, token, branch, commit_message):
     api_url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
