@@ -52,6 +52,9 @@ st.markdown(f"""
     }}
     updateDiscogsIcons();
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateDiscogsIcons);
+
+    const observer = new MutationObserver(updateDiscogsIcons);
+    observer.observe(document.body, {{ childList: true, subtree: true }});
     </script>
 """, unsafe_allow_html=True)
 
