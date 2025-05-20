@@ -58,6 +58,14 @@ st.markdown(f"""
     </script>
 """, unsafe_allow_html=True)
 
+st.markdown("""
+    <style>
+    img[data-discogs-icon] {{
+        transition: filter 0.3s ease;
+    }}
+    </style>
+""", unsafe_allow_html=True)
+
 def upload_to_github(file_path, repo, token, branch, commit_message):
     api_url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
     headers = {
