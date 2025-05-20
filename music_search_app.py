@@ -55,6 +55,8 @@ st.markdown(f"""
 
     const observer = new MutationObserver(updateDiscogsIcons);
     observer.observe(document.body, {{ childList: true, subtree: true }});
+
+    setTimeout(updateDiscogsIcons, 200);  // Additional fail-safe refresh after 200ms
     </script>
 """, unsafe_allow_html=True)
 
