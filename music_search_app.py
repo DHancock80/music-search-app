@@ -46,6 +46,7 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', upd
 </script>
 """, unsafe_allow_html=True)
 
+
 def normalize(text):
     if pd.isna(text): return ''
     text = str(text).lower()
