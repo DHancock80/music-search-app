@@ -30,6 +30,22 @@ GITHUB_BRANCH = 'main'
 if 'open_expander_id' not in st.session_state:
     st.session_state['open_expander_id'] = None
 
+# JavaScript for dynamic icon switching
+st.markdown("""
+<script>
+function updateDiscogsIcons() {
+    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const iconSrc = isDark
+        ? "https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_white.png"
+        : "https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_black.png";
+    document.querySelectorAll("img[data-discogs-icon]").forEach(img => img.src = iconSrc);
+}
+
+window.addEventListener('load', updateDiscogsIcons);
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateDiscogsIcons);
+</script>
+""", unsafe_allow_html=True)
+
 def normalize(text):
     if pd.isna(text): return ''
     text = str(text).lower()
@@ -41,11 +57,9 @@ def fuzzy_match(text, query, threshold=85):
     return fuzz.partial_ratio(normalize(text), normalize(query)) >= threshold
 
 def render_discogs_link(release_id):
-    theme = st.get_option("theme.base")
-    icon = DISCOGS_ICON_WHITE if theme == "dark" else DISCOGS_ICON_BLACK
     return f"""
         <a href='https://www.discogs.com/release/{release_id}' target='_blank'>
-            <img src='{icon}' width='24' style='margin-left:10px;' />
+            <img data-discogs-icon src='{DISCOGS_ICON_WHITE}' width='24' style='margin-left:10px;' />
         </a>
     """
 
