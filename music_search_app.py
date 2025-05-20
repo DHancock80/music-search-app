@@ -40,6 +40,21 @@ def normalize(text):
 def fuzzy_match(text, query, threshold=85):
     return fuzz.partial_ratio(normalize(text), normalize(query)) >= threshold
 
+# Fix Discogs icon dynamically on dark/light theme
+st.markdown(f"""
+    <script>
+    function updateDiscogsIcons() {{
+        const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const icons = document.querySelectorAll('[data-discogs-icon]');
+        icons.forEach(el => {{
+            el.src = isDark ? '{DISCOGS_ICON_WHITE}' : '{DISCOGS_ICON_BLACK}';
+        }});
+    }}
+    updateDiscogsIcons();
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateDiscogsIcons);
+    </script>
+""", unsafe_allow_html=True)
+
 def upload_to_github(file_path, repo, token, branch, commit_message):
     api_url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
     headers = {
