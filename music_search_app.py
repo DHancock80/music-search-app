@@ -60,10 +60,22 @@ st.markdown(f"""
 
 st.markdown("""
     <style>
-    img[data-discogs-icon] {{
+    img[data-discogs-icon] {
         transition: filter 0.3s ease;
-    }}
+    }
     </style>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const icons = document.querySelectorAll('[data-discogs-icon]');
+        const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        icons.forEach(el => {
+            el.src = isDark ? "{DISCOGS_ICON_WHITE}" : "{DISCOGS_ICON_BLACK}";
+        });
+    });
+    </script>
 """, unsafe_allow_html=True)
 
 def upload_to_github(file_path, repo, token, branch, commit_message):
