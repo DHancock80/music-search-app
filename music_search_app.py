@@ -40,30 +40,14 @@ def normalize(text):
 def fuzzy_match(text, query, threshold=85):
     return fuzz.partial_ratio(normalize(text), normalize(query)) >= threshold
 
-# Fix Discogs icon dynamically on dark/light theme using JS for reliability
-st.markdown(f"""
-    <style>
-    .discogs-icon-white {{ display: none; }}
-    .discogs-icon-black {{ display: none; }}
-    </style>
-    <script>
-    const updateDiscogsIcons = () => {{
-        const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        document.querySelectorAll('.discogs-icon-white').forEach(el => el.style.display = isDark ? 'inline' : 'none');
-        document.querySelectorAll('.discogs-icon-black').forEach(el => el.style.display = isDark ? 'none' : 'inline');
-    }}
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateDiscogsIcons);
-    document.addEventListener('DOMContentLoaded', updateDiscogsIcons);
-    setTimeout(updateDiscogsIcons, 500);
-    </script>
-""", unsafe_allow_html=True)
-
 # Use this in your rendering loop:
 def render_discogs_link(release_id):
+    # Detect light/dark mode from Streamlit theme settings
+    theme = st.get_option("theme.base")
+    icon = DISCOGS_ICON_WHITE if theme == "dark" else DISCOGS_ICON_BLACK
     return f"""
         <a href='https://www.discogs.com/release/{release_id}' target='_blank'>
-            <img class='discogs-icon-white' src='{DISCOGS_ICON_WHITE}' width='24' style='margin-left:10px;' />
-            <img class='discogs-icon-black' src='{DISCOGS_ICON_BLACK}' width='24' style='margin-left:10px;' />
+            <img src='{icon}' width='24' style='margin-left:10px;' />
         </a>
     """
 
