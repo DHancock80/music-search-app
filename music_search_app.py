@@ -40,9 +40,7 @@ def normalize(text):
 def fuzzy_match(text, query, threshold=85):
     return fuzz.partial_ratio(normalize(text), normalize(query)) >= threshold
 
-# Use this in your rendering loop:
 def render_discogs_link(release_id):
-    # Detect light/dark mode from Streamlit theme settings
     theme = st.get_option("theme.base")
     icon = DISCOGS_ICON_WHITE if theme == "dark" else DISCOGS_ICON_BLACK
     return f"""
@@ -50,8 +48,6 @@ def render_discogs_link(release_id):
             <img src='{icon}' width='24' style='margin-left:10px;' />
         </a>
     """
-
-# Replace any inline Discogs <a>...</a> blocks with {render_discogs_link(release_id)} where needed.
 
 def upload_to_github(file_path, repo, token, branch, commit_message):
     api_url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
@@ -209,15 +205,6 @@ if search_query:
             color: var(--primary-color);
         }
         </style>
-        <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const logos = document.querySelectorAll('[data-discogs-icon]');
-            const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            logos.forEach(el => {
-                el.src = isDark ? '{DISCOGS_ICON_WHITE}' : '{DISCOGS_ICON_BLACK}';
-            });
-        });
-        </script>
         """, unsafe_allow_html=True)
 
         for release_id, group in results.groupby('release_id'):
@@ -240,10 +227,7 @@ if search_query:
                 st.markdown(f"""
                     <div style="display:flex;justify-content:space-between;align-items:center;">
                         <div style="font-size:20px;font-weight:600;">{title}</div>
-""", unsafe_allow_html=True)
-
-st.markdown(render_discogs_link(release_id), unsafe_allow_html=True)
-
+                        {render_discogs_link(release_id)}
                     </div>
                     <div><strong>Artist:</strong> {artist}</div>
                 """, unsafe_allow_html=True)
