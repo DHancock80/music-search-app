@@ -40,23 +40,22 @@ def normalize(text):
 def fuzzy_match(text, query, threshold=85):
     return fuzz.partial_ratio(normalize(text), normalize(query)) >= threshold
 
-# Fix Discogs icon dynamically on dark/light theme using CSS
+# Fix Discogs icon dynamically on dark/light theme using JS for reliability
 st.markdown(f"""
     <style>
-    @media (prefers-color-scheme: dark) {{
-        .discogs-icon {{
-            content: url('{DISCOGS_ICON_WHITE}');
-        }}
-    }}
-    @media (prefers-color-scheme: light) {{
-        .discogs-icon {{
-            content: url('{DISCOGS_ICON_BLACK}');
-        }}
-    }}
-    img.discogs-icon {{
-        transition: filter 0.3s ease;
-    }}
+    .discogs-icon-white {{ display: none; }}
+    .discogs-icon-black {{ display: none; }}
     </style>
+    <script>
+    const updateDiscogsIcons = () => {{
+        const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.querySelectorAll('.discogs-icon-white').forEach(el => el.style.display = isDark ? 'inline' : 'none');
+        document.querySelectorAll('.discogs-icon-black').forEach(el => el.style.display = isDark ? 'none' : 'inline');
+    }}
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateDiscogsIcons);
+    document.addEventListener('DOMContentLoaded', updateDiscogsIcons);
+    setTimeout(updateDiscogsIcons, 500);
+    </script>
 """, unsafe_allow_html=True)
 
 # Example Discogs icon usage (add wherever rendering results)
@@ -64,7 +63,8 @@ st.markdown(f"""
     <div style="display:flex;justify-content:space-between;align-items:center;">
         <div style="font-size:20px;font-weight:600;">Example Album</div>
         <a href="https://www.discogs.com/release/12345" target="_blank">
-            <img class="discogs-icon" width="24" style="margin-left:10px;" />
+            <img class="discogs-icon-white" src="{DISCOGS_ICON_WHITE}" width="24" style="margin-left:10px;" />
+            <img class="discogs-icon-black" src="{DISCOGS_ICON_BLACK}" width="24" style="margin-left:10px;" />
         </a>
     </div>
     <div><strong>Artist:</strong> Example Artist</div>
