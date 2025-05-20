@@ -29,9 +29,6 @@ GITHUB_BRANCH = 'main'
 
 if 'open_expander_id' not in st.session_state:
     st.session_state['open_expander_id'] = None
-if 'results_summary' not in st.session_state:
-    st.session_state['results_summary'] = {'All': 0, 'Album': 0, 'Single': 0, 'Video': 0}
-
 
 def normalize(text):
     if pd.isna(text): return ''
@@ -40,40 +37,8 @@ def normalize(text):
     text = re.sub(r'[^a-z0-9]+', ' ', text)
     return text.strip()
 
-
 def fuzzy_match(text, query, threshold=85):
     return fuzz.partial_ratio(normalize(text), normalize(query)) >= threshold
-
-
-@st.cache_data
-def get_auto_suggestions(df, field, query, limit=10):
-    norm_query = normalize(query)
-    matches = df[field].dropna().unique()
-    ranked = sorted(matches, key=lambda x: fuzz.partial_ratio(norm_query, normalize(x)), reverse=True)
-    return ranked[:limit]
-
-
-@st.cache_data
-def load_data():
-    try:
-        df = pd.read_csv(CSV_FILE, encoding='utf-8', on_bad_lines='skip')
-        if 'cover_art' not in df.columns:
-            df['cover_art'] = None
-        try:
-            overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='utf-8', on_bad_lines='skip')
-            overrides.columns = overrides.columns.str.strip().str.lower()
-            if not {'release_id', 'cover_url'}.issubset(overrides.columns):
-                df['cover_art_final'] = df['cover_art']
-            else:
-                overrides = overrides.drop_duplicates(subset='release_id', keep='last')
-                df = df.merge(overrides, on='release_id', how='left', suffixes=('', '_override'))
-                df['cover_art_final'] = df['cover_url'].combine_first(df['cover_art'])
-        except:
-            df['cover_art_final'] = df['cover_art']
-    except:
-        df = pd.DataFrame()
-    return df
-
 
 def upload_to_github(file_path, repo, token, branch, commit_message):
     api_url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
@@ -85,7 +50,7 @@ def upload_to_github(file_path, repo, token, branch, commit_message):
         content = f.read()
     content_b64 = base64.b64encode(content).decode()
     get_resp = requests.get(api_url, headers=headers, params={"ref": branch})
-    sha = get_resp.json()['sha'] if get_resp.status_code == 200 else None
+    sha = get_resp.json().get('sha') if get_resp.status_code == 200 else None
     data = {
         "message": commit_message,
         "content": content_b64,
@@ -94,8 +59,9 @@ def upload_to_github(file_path, repo, token, branch, commit_message):
     if sha:
         data["sha"] = sha
     response = requests.put(api_url, headers=headers, json=data)
+    if response.status_code not in [200, 201]:
+        st.error(f"❌ GitHub upload failed: {response.status_code} - {response.text}")
     return response
-
 
 def update_cover_override(release_id, new_url):
     try:
@@ -124,7 +90,6 @@ def update_cover_override(release_id, new_url):
     st.cache_data.clear()
     st.rerun()
 
-
 def reset_cover_override(release_id):
     try:
         overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='utf-8')
@@ -138,54 +103,138 @@ def reset_cover_override(release_id):
     except Exception as e:
         st.error(f"Reset failed: {e}")
 
+def fetch_discogs_cover(release_id):
+    headers = {"Authorization": f"Discogs token={DISCOGS_API_TOKEN}"}
+    try:
+        response = requests.get(f"https://api.discogs.com/releases/{release_id}", headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            if 'images' in data and len(data['images']) > 0:
+                cover_url = data['images'][0]['uri']
+                update_cover_override(release_id, cover_url)
+                return cover_url
+    except Exception as e:
+        st.warning(f"Discogs fetch failed for {release_id}: {e}")
+    return None
 
-# === UI Enhancements and Sorting Logic ===
+@st.cache_data
+def load_data():
+    try:
+        df = pd.read_csv(CSV_FILE, encoding='utf-8')
+        if df.columns[0].startswith("Unnamed"):
+            df = df.drop(columns=[df.columns[0]])
+        if 'cover_art' not in df.columns:
+            df['cover_art'] = None
+        try:
+            overrides = pd.read_csv(COVER_OVERRIDES_FILE, encoding='utf-8', on_bad_lines='skip')
+            overrides.columns = overrides.columns.str.strip().str.lower()
+            if not {'release_id', 'cover_url'}.issubset(overrides.columns):
+                st.warning("Overrides file missing required columns. Skipping override merge.")
+                df['cover_art_final'] = df['cover_art']
+            else:
+                overrides = overrides.drop_duplicates(subset='release_id', keep='last')
+                df = df.merge(overrides, on='release_id', how='left', suffixes=('', '_override'))
+                df['cover_art_final'] = df['cover_url'].combine_first(df['cover_art'])
+                for idx, row in df[df['cover_art_final'].isna()].iterrows():
+                    new_cover = fetch_discogs_cover(row['release_id'])
+                    if new_cover:
+                        df.at[idx, 'cover_art_final'] = new_cover
+        except Exception as e:
+            st.warning(f"Could not read cover overrides: {e}")
+            df['cover_art_final'] = df['cover_art']
+    except Exception as e:
+        st.error(f"Error loading the CSV file: {e}")
+        df = pd.DataFrame()
+    return df
+
+# === UI ===
 st.title("Music Search App")
-df = load_data()
+search_query = st.text_input("Enter your search:", "")
 search_type = st.radio("Search by:", ["Song Title", "Artist", "Album"], horizontal=True)
-query = st.text_input("Enter your search:", "")
-sort_option = st.selectbox("Sort results by:", ["Alphabetical (A-Z)", "Release Year (Newest First)", "Release Year (Oldest First)"])
 
-# Auto suggestions (before search)
-if query and len(query) >= 3:
-    suggestions = get_auto_suggestions(df, {'Song Title': 'Track Title', 'Artist': 'Artist', 'Album': 'Title'}[search_type], query)
-    if suggestions:
-        st.caption("Suggestions:")
-        st.write(", ".join(suggestions))
+if search_query:
+    df = load_data()
+    if search_type == "Song Title":
+        results = df[df['Track Title'].apply(lambda x: fuzzy_match(str(x), search_query))]
+    elif search_type == "Artist":
+        results = df[df['Artist'].apply(lambda x: fuzzy_match(str(x), search_query))]
+    elif search_type == "Album":
+        results = df[df['Title'].apply(lambda x: fuzzy_match(str(x), search_query))]
+    else:
+        results = pd.DataFrame()
 
-# Apply search
-if query:
-    field_map = {'Song Title': 'Track Title', 'Artist': 'Artist', 'Album': 'Title'}
-    field = field_map[search_type]
-    results = df[df[field].apply(lambda x: fuzzy_match(str(x), query))]
+    if results.empty:
+        st.warning("No results found.")
+    else:
+        st.markdown("""
+        <style>
+        div[data-testid="stButton"] > button {
+            background: none;
+            border: none;
+            padding: 0;
+            font-size: 14px;
+            text-decoration: underline;
+            color: var(--text-color);
+            cursor: pointer;
+        }
+        div[data-testid="stButton"] > button:hover {
+            color: var(--primary-color);
+        }
+        </style>
+        <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const logos = document.querySelectorAll('[data-discogs-icon]');
+            const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            logos.forEach(el => {
+                el.src = isDark ? '{DISCOGS_ICON_WHITE}' : '{DISCOGS_ICON_BLACK}';
+            });
+        });
+        </script>
+        """, unsafe_allow_html=True)
 
-    # Sort results
-    if sort_option == "Alphabetical (A-Z)":
-        results = results.sort_values(by="Title", na_position="last")
-    elif sort_option == "Release Year (Newest First)":
-        results = results.sort_values(by="Year", ascending=False, na_position="last")
-    elif sort_option == "Release Year (Oldest First)":
-        results = results.sort_values(by="Year", ascending=True, na_position="last")
+        for release_id, group in results.groupby('release_id'):
+            first = group.iloc[0]
+            cover_url = first.get('cover_art_final') or PLACEHOLDER_COVER
+            artist = "Various Artists" if group['Artist'].nunique() > 1 else group['Artist'].iloc[0]
+            title = first['Title']
 
-    st.success(f"{len(results)} results found.")
-
-    for release_id, group in results.groupby("release_id"):
-        release = group.iloc[0]
-        st.subheader(release['Title'])
-        st.text(f"Artist: {release['Artist']}")
-        st.image(release['cover_art_final'] or PLACEHOLDER_COVER, width=150)
-
-        with st.expander("Click to view tracklist"):
-            st.dataframe(group[['Track Title', 'Artist', 'CD', 'Track Number']])
-
-        with st.expander("Update Cover Art"):
-            new_url = st.text_input("Custom cover art URL:", key=f"url_{release_id}")
-            cols = st.columns(2)
+            cols = st.columns([1, 5])
             with cols[0]:
-                if st.button("Upload custom URL", key=f"upload_{release_id}"):
-                    update_cover_override(release_id, new_url)
+                st.markdown(f"""
+                    <a href="{cover_url}" target="_blank">
+                        <img src="{cover_url}" width="120" style="border-radius:8px;" />
+                    </a>
+                """, unsafe_allow_html=True)
+                if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
+                    st.session_state['open_expander_id'] = release_id if st.session_state['open_expander_id'] != release_id else None
+
             with cols[1]:
-                if st.button("Revert to original Cover Art", key=f"revert_{release_id}"):
-                    reset_cover_override(release_id)
+                st.markdown(f"""
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <div style="font-size:20px;font-weight:600;">{title}</div>
+                        <a href="https://www.discogs.com/release/{release_id}" target="_blank">
+                            <img data-discogs-icon src="{DISCOGS_ICON_WHITE}" width="24" style="margin-left:10px;" />
+                        </a>
+                    </div>
+                    <div><strong>Artist:</strong> {artist}</div>
+                """, unsafe_allow_html=True)
+
+            is_expanded = st.session_state.get('open_expander_id') == release_id
+            if is_expanded:
+                with st.expander("Update Cover Art", expanded=True):
+                    with st.form(f"form_{release_id}"):
+                        new_url = st.text_input("Custom cover art URL:", key=f"url_{release_id}")
+                        cols = st.columns(2)
+                        with cols[0]:
+                            if st.form_submit_button("Upload custom URL"):
+                                update_cover_override(release_id, new_url)
+                        with cols[1]:
+                            if st.form_submit_button("Revert to original Cover Art"):
+                                reset_cover_override(release_id)
+            else:
+                with st.expander("Click to view tracklist"):
+                    st.dataframe(group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
+                        'Track Title': 'Song', 'CD': 'Disc', 'Track Number': 'Track'
+                    }).reset_index(drop=True), use_container_width=True, hide_index=True)
 else:
     st.caption("Please enter a search query above.")
