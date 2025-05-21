@@ -30,32 +30,6 @@ GITHUB_BRANCH = 'main'
 if 'open_expander_id' not in st.session_state:
     st.session_state['open_expander_id'] = None
 
-# JavaScript for dynamic icon switching
-st.markdown("""
-<script>
-function updateDiscogsIcons() {
-    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const iconSrc = isDark
-        ? "https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_white.png"
-        : "https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_black.png";
-    document.querySelectorAll("img[data-discogs-icon]").forEach(img => img.src = iconSrc);
-}
-
-document.addEventListener("DOMContentLoaded", function () {
-    updateDiscogsIcons();
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateDiscogsIcons);
-});
-</script>
-""", unsafe_allow_html=True)
-
-st.markdown("""
-<style>
-    img[data-discogs-icon] {
-        transition: filter 0.3s;
-    }
-</style>
-""", unsafe_allow_html=True)
-
 def normalize(text):
     if pd.isna(text): return ''
     text = str(text).lower()
@@ -69,12 +43,12 @@ def fuzzy_match(text, query, threshold=85):
 def render_discogs_link(release_id):
     return f"""
         <a href='https://www.discogs.com/release/{release_id}' target='_blank'>
-            <img data-discogs-icon src='https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_white.png' width='24' style='margin-left:10px;' />
+            <img src='{DISCOGS_ICON_WHITE}' width='24' style='margin-left:10px;' />
         </a>
     """
 
-# Everything else in the original script remains below this point.
-# The icon will dynamically switch between black and white based on theme.
+# Removed JavaScript for icon switching to revert to the last working baseline.
+# If theme-based switching is retried, we will isolate and verify before integration.
 
 def upload_to_github(file_path, repo, token, branch, commit_message):
     api_url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
