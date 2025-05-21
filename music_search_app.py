@@ -34,7 +34,6 @@ if 'search_input' not in st.session_state:
 if 'search_type' not in st.session_state:
     st.session_state['search_type'] = "Song Title"
 
-
 def normalize(text):
     if pd.isna(text): return ''
     text = str(text).lower()
@@ -44,16 +43,6 @@ def normalize(text):
 
 def fuzzy_match(text, query, threshold=85):
     return fuzz.partial_ratio(normalize(text), normalize(query)) >= threshold
-
-def get_suggestions(df, field, prefix, max_results=10):
-    if df.empty or not prefix or len(prefix) < 2:
-        return []
-    normalized_prefix = normalize(prefix)
-    column = df[field].dropna().astype(str)
-    unique_values = column.drop_duplicates().values
-    matches = [val for val in unique_values if normalized_prefix in normalize(val)]
-    matches.sort(key=lambda x: 0 if normalize(x).startswith(normalized_prefix) else 1)
-    return matches[:max_results]
 
 def upload_to_github(file_path, repo, token, branch, commit_message):
     api_url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
@@ -165,36 +154,24 @@ def load_data():
 # === UI ===
 st.title("Music Search App")
 
+# Add a clear search button
 if st.button("🔄 New Search (Clear)"):
     st.session_state.clear()
-    st.session_state['search_input'] = ""
-    st.session_state['search_type'] = "Song Title"
     st.rerun()
 
-df = load_data()
-field_map = {
-    "Song Title": "Track Title",
-    "Artist": "Artist",
-    "Album": "Title"
-}
-
-query_input = st.text_input("Enter your search:", value=st.session_state.get('search_input', ""), placeholder="Start typing...", key="search_bar")
-
-search_type = st.radio("Search by:", list(field_map.keys()), horizontal=True, key="search_type")
-st.session_state['search_input'] = query_input
-
-# Show live suggestions immediately below the input
-if len(query_input) >= 2:
-    suggestions = get_suggestions(df, field_map[search_type], query_input)
-    for suggestion in suggestions:
-        if st.button(f"🔍 {suggestion}", key=f"sugg_{suggestion}"):
-            st.session_state['search_input'] = suggestion
-            st.rerun()
-
-search_query = st.session_state.get('search_input', "")
+search_query = st.text_input("Enter your search:", value=st.session_state.get('search_input', ""), key="search_input")
+search_type = st.radio("Search by:", ["Song Title", "Artist", "Album"], horizontal=True, key="search_type")
 
 if search_query:
-    results = df[df[field_map[search_type]].apply(lambda x: fuzzy_match(str(x), search_query))]
+    df = load_data()
+    if search_type == "Song Title":
+        results = df[df['Track Title'].apply(lambda x: fuzzy_match(str(x), search_query))]
+    elif search_type == "Artist":
+        results = df[df['Artist'].apply(lambda x: fuzzy_match(str(x), search_query))]
+    elif search_type == "Album":
+        results = df[df['Title'].apply(lambda x: fuzzy_match(str(x), search_query))]
+    else:
+        results = pd.DataFrame()
 
     unique_releases = results[['release_id', 'Format']].drop_duplicates()
     format_counts = {
@@ -214,6 +191,23 @@ if search_query:
     if results.empty:
         st.warning("No results found.")
     else:
+        st.markdown("""
+        <style>
+        div[data-testid="stButton"] > button {
+            background: none;
+            border: none;
+            padding: 0;
+            font-size: 14px;
+            text-decoration: underline;
+            color: var(--text-color);
+            cursor: pointer;
+        }
+        div[data-testid="stButton"] > button:hover {
+            color: var(--primary-color);
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
         for release_id, group in results.groupby('release_id'):
             first = group.iloc[0]
             cover_url = first.get('cover_art_final') or PLACEHOLDER_COVER
