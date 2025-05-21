@@ -41,7 +41,7 @@ function updateDiscogsIcons() {
     document.querySelectorAll("img[data-discogs-icon]").forEach(img => img.src = iconSrc);
 }
 
-window.addEventListener('load', updateDiscogsIcons);
+document.addEventListener("DOMContentLoaded", updateDiscogsIcons);
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateDiscogsIcons);
 </script>
 """, unsafe_allow_html=True)
