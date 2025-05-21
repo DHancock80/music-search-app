@@ -253,7 +253,3 @@ if search_query:
                     }).reset_index(drop=True), use_container_width=True, hide_index=True)
 else:
     st.caption("Please enter a search query above.")
-
-
-if __name__ == "__main__":
-    main()
