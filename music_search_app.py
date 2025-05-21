@@ -182,6 +182,23 @@ if search_query:
     if results.empty:
         st.warning("No results found.")
     else:
+        st.markdown("""
+        <style>
+        div[data-testid="stButton"] > button {
+            background: none;
+            border: none;
+            padding: 0;
+            font-size: 14px;
+            text-decoration: underline;
+            color: var(--text-color);
+            cursor: pointer;
+        }
+        div[data-testid="stButton"] > button:hover {
+            color: var(--primary-color);
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
         for release_id, group in results.groupby('release_id'):
             first = group.iloc[0]
             cover_url = first.get('cover_art_final') or PLACEHOLDER_COVER
