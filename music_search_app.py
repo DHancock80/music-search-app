@@ -33,7 +33,12 @@ if 'search_input' not in st.session_state:
     st.session_state['search_input'] = ""
 if 'search_type' not in st.session_state:
     st.session_state['search_type'] = "Song Title"
+if 'show_suggestions' not in st.session_state:
+    st.session_state['show_suggestions'] = False
+if 'suggestions' not in st.session_state:
+    st.session_state['suggestions'] = []
 
+# === Helper Functions ===
 def normalize(text):
     if pd.isna(text): return ''
     text = str(text).lower()
@@ -43,6 +48,16 @@ def normalize(text):
 
 def fuzzy_match(text, query, threshold=85):
     return fuzz.partial_ratio(normalize(text), normalize(query)) >= threshold
+
+def get_suggestions(df, field, prefix, max_results=10):
+    if df.empty or not prefix or len(prefix) < 2:
+        return []
+    normalized_prefix = normalize(prefix)
+    column = df[field].dropna().astype(str)
+    unique_values = column.drop_duplicates().values
+    matches = [val for val in unique_values if normalized_prefix in normalize(val)]
+    matches.sort(key=lambda x: 0 if normalize(x).startswith(normalized_prefix) else 1)
+    return matches[:max_results]
 
 def upload_to_github(file_path, repo, token, branch, commit_message):
     api_url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
@@ -151,25 +166,43 @@ def load_data():
         df = pd.DataFrame()
     return df
 
-# === UI ===
+# Suggestion Display Function
+def display_suggestions(suggestions):
+    if not suggestions:
+        return
+    st.markdown("<div class='animate-fade-in'>", unsafe_allow_html=True)
+    for suggestion in suggestions:
+        if st.button(f"🔍 {suggestion}", key=f"sugg_{suggestion}"):
+            st.session_state.search_input = suggestion
+            st.session_state.show_suggestions = False
+            st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# Render the real-time search bar
 st.title("Music Search App")
 
-# Add a clear search button
 if st.button("🔄 New Search (Clear)"):
     st.session_state.clear()
     st.rerun()
 
-search_query = st.text_input("Enter your search:", value=st.session_state.get('search_input', ""), key="search_input")
 search_type = st.radio("Search by:", ["Song Title", "Artist", "Album"], horizontal=True, key="search_type")
+search_input = st.text_input("Enter your search:", value=st.session_state.get('search_input', ""), key="search_input")
 
-if search_query:
+if len(search_input) >= 2:
     df = load_data()
+    field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title"}
+    suggestions = get_suggestions(df, field_map[search_type], search_input)
+    display_suggestions(suggestions)
+
+if search_input:
+    if 'df' not in locals():
+        df = load_data()
     if search_type == "Song Title":
-        results = df[df['Track Title'].apply(lambda x: fuzzy_match(str(x), search_query))]
+        results = df[df['Track Title'].apply(lambda x: fuzzy_match(str(x), search_input))]
     elif search_type == "Artist":
-        results = df[df['Artist'].apply(lambda x: fuzzy_match(str(x), search_query))]
+        results = df[df['Artist'].apply(lambda x: fuzzy_match(str(x), search_input))]
     elif search_type == "Album":
-        results = df[df['Title'].apply(lambda x: fuzzy_match(str(x), search_query))]
+        results = df[df['Title'].apply(lambda x: fuzzy_match(str(x), search_input))]
     else:
         results = pd.DataFrame()
 
