@@ -48,6 +48,14 @@ document.addEventListener("DOMContentLoaded", function () {
 </script>
 """, unsafe_allow_html=True)
 
+st.markdown("""
+<style>
+    img[data-discogs-icon] {
+        transition: filter 0.3s;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 def normalize(text):
     if pd.isna(text): return ''
     text = str(text).lower()
