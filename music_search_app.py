@@ -30,9 +30,6 @@ GITHUB_BRANCH = 'main'
 if 'open_expander_id' not in st.session_state:
     st.session_state['open_expander_id'] = None
 
-if 'refresh_triggered' not in st.session_state:
-    st.session_state['refresh_triggered'] = False
-
 def normalize(text):
     if pd.isna(text): return ''
     text = str(text).lower()
@@ -156,9 +153,10 @@ st.title("Music Search App")
 # Add a clear search button
 if st.button("🔄 New Search (Clear)"):
     st.session_state['open_expander_id'] = None
+    st.session_state['search_input'] = ""
     st.rerun()
 
-search_query = st.text_input("Enter your search:", "")
+search_query = st.text_input("Enter your search:", value=st.session_state.get('search_input', ""), key="search_input")
 search_type = st.radio("Search by:", ["Song Title", "Artist", "Album"], horizontal=True)
 
 if search_query:
