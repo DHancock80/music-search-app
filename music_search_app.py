@@ -33,8 +33,7 @@ if 'search_input' not in st.session_state:
     st.session_state['search_input'] = ""
 if 'search_type' not in st.session_state:
     st.session_state['search_type'] = "Song Title"
-if 'show_suggestions' not in st.session_state:
-    st.session_state['show_suggestions'] = False
+
 
 def normalize(text):
     if pd.isna(text): return ''
@@ -179,26 +178,18 @@ field_map = {
     "Album": "Title"
 }
 
-# --- Updated: Live suggestions as user types ---
-query_input = st.text_input("Enter your search:", value=st.session_state.get('search_input', ""), placeholder="Start typing...")
-
-if query_input != st.session_state.get('search_input', ""):
-    st.session_state['search_input'] = query_input
-    st.session_state['show_suggestions'] = len(query_input) >= 2
+query_input = st.text_input("Enter your search:", value=st.session_state.get('search_input', ""), placeholder="Start typing...", key="search_bar")
 
 search_type = st.radio("Search by:", list(field_map.keys()), horizontal=True, key="search_type")
+st.session_state['search_input'] = query_input
 
-if st.session_state.get('show_suggestions', False):
-    suggestions = get_suggestions(df, field_map[search_type], st.session_state['search_input'])
-    if suggestions:
-        with st.container():
-            st.markdown("<div class='animate-fade-in'>", unsafe_allow_html=True)
-            for suggestion in suggestions:
-                if st.button(f"🔍 {suggestion}", key=f"sugg_{suggestion}"):
-                    st.session_state['search_input'] = suggestion
-                    st.session_state['show_suggestions'] = False
-                    st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
+# Show live suggestions immediately below the input
+if len(query_input) >= 2:
+    suggestions = get_suggestions(df, field_map[search_type], query_input)
+    for suggestion in suggestions:
+        if st.button(f"🔍 {suggestion}", key=f"sugg_{suggestion}"):
+            st.session_state['search_input'] = suggestion
+            st.rerun()
 
 search_query = st.session_state.get('search_input', "")
 
@@ -223,23 +214,6 @@ if search_query:
     if results.empty:
         st.warning("No results found.")
     else:
-        st.markdown("""
-        <style>
-        div[data-testid="stButton"] > button {
-            background: none;
-            border: none;
-            padding: 0;
-            font-size: 14px;
-            text-decoration: underline;
-            color: var(--text-color);
-            cursor: pointer;
-        }
-        div[data-testid="stButton"] > button:hover {
-            color: var(--primary-color);
-        }
-        </style>
-        """, unsafe_allow_html=True)
-
         for release_id, group in results.groupby('release_id'):
             first = group.iloc[0]
             cover_url = first.get('cover_art_final') or PLACEHOLDER_COVER
