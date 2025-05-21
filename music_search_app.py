@@ -149,29 +149,6 @@ def load_data():
 
 # === UI ===
 st.title("Music Search App")
-st.markdown(f"""
-<script>
-function updateDiscogsIcons() {{
-    const isDark = document.body.classList.contains('dark');
-    document.querySelectorAll('[data-discogs-icon]').forEach(el => {{
-        el.src = isDark ? '{DISCOGS_ICON_WHITE}' : '{DISCOGS_ICON_BLACK}';
-    }});
-}}
-
-const observer = new MutationObserver(function(mutations) {{
-    mutations.forEach(function(mutation) {{
-        if (mutation.attributeName === 'class') {{
-            updateDiscogsIcons();
-        }}
-    }});
-}});
-
-document.addEventListener('DOMContentLoaded', function() {{
-    updateDiscogsIcons();
-    observer.observe(document.body, {{ attributes: true }});
-}});
-</script>
-""", unsafe_allow_html=True)
 
 search_query = st.text_input("Enter your search:", "")
 search_type = st.radio("Search by:", ["Song Title", "Artist", "Album"], horizontal=True)
@@ -222,11 +199,13 @@ if search_query:
                     st.session_state['open_expander_id'] = release_id if st.session_state['open_expander_id'] != release_id else None
 
             with cols[1]:
+                theme = st.get_option("theme.base")
+                icon_url = DISCOGS_ICON_BLACK if theme == "light" else DISCOGS_ICON_WHITE
                 st.markdown(f"""
                     <div style="display:flex;justify-content:space-between;align-items:center;">
                         <div style="font-size:20px;font-weight:600;">{title}</div>
                         <a href="https://www.discogs.com/release/{release_id}" target="_blank">
-                            <img data-discogs-icon src="{DISCOGS_ICON_WHITE}" width="24" style="margin-left:10px;" />
+                            <img src="{icon_url}" width="24" style="margin-left:10px;" />
                         </a>
                     </div>
                     <div><strong>Artist:</strong> {artist}</div>
