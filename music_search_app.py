@@ -169,6 +169,8 @@ st.title("Music Search App")
 
 if st.button("🔄 New Search (Clear)"):
     st.session_state.clear()
+    st.session_state['search_input'] = ""
+    st.session_state['search_type'] = "Song Title"
     st.rerun()
 
 df = load_data()
@@ -184,10 +186,14 @@ search_type = st.radio("Search by:", list(field_map.keys()), horizontal=True, ke
 # Show suggestions while typing
 if len(search_query) >= 2:
     suggestions = get_suggestions(df, field_map[search_type], search_query)
-    for suggestion in suggestions:
-        if st.button(f"🔍 {suggestion}", key=f"sugg_{suggestion}"):
-            st.session_state['search_input'] = suggestion
-            st.rerun()
+    if suggestions:
+        with st.container():
+            st.markdown("<div class='animate-fade-in'>", unsafe_allow_html=True)
+            for suggestion in suggestions:
+                if st.button(f"🔍 {suggestion}", key=f"sugg_{suggestion}"):
+                    st.session_state['search_input'] = suggestion
+                    st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
 
 if search_query:
     results = df[df[field_map[search_type]].apply(lambda x: fuzzy_match(str(x), search_query))]
