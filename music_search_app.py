@@ -60,9 +60,12 @@ def fuzzy_match(text, query, threshold=85):
 def render_discogs_link(release_id):
     return f"""
         <a href='https://www.discogs.com/release/{release_id}' target='_blank'>
-            <img data-discogs-icon src='{DISCOGS_ICON_WHITE}' width='24' style='margin-left:10px;' />
+            <img data-discogs-icon src='' width='24' style='margin-left:10px;' />
         </a>
     """
+
+# Everything else in the original script remains below this point.
+# The icon will dynamically switch between black and white based on theme.
 
 def upload_to_github(file_path, repo, token, branch, commit_message):
     api_url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
