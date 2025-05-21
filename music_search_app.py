@@ -36,7 +36,6 @@ if 'search_type' not in st.session_state:
 if 'show_suggestions' not in st.session_state:
     st.session_state['show_suggestions'] = False
 
-
 def normalize(text):
     if pd.isna(text): return ''
     text = str(text).lower()
@@ -180,20 +179,28 @@ field_map = {
     "Album": "Title"
 }
 
-search_query = st.text_input("Enter your search:", value=st.session_state.get('search_input', ""), key="search_input")
+# --- Updated: Live suggestions as user types ---
+query_input = st.text_input("Enter your search:", value=st.session_state.get('search_input', ""), placeholder="Start typing...")
+
+if query_input != st.session_state.get('search_input', ""):
+    st.session_state['search_input'] = query_input
+    st.session_state['show_suggestions'] = len(query_input) >= 2
+
 search_type = st.radio("Search by:", list(field_map.keys()), horizontal=True, key="search_type")
 
-# Show suggestions while typing
-if len(search_query) >= 2:
-    suggestions = get_suggestions(df, field_map[search_type], search_query)
+if st.session_state.get('show_suggestions', False):
+    suggestions = get_suggestions(df, field_map[search_type], st.session_state['search_input'])
     if suggestions:
         with st.container():
             st.markdown("<div class='animate-fade-in'>", unsafe_allow_html=True)
             for suggestion in suggestions:
                 if st.button(f"🔍 {suggestion}", key=f"sugg_{suggestion}"):
                     st.session_state['search_input'] = suggestion
+                    st.session_state['show_suggestions'] = False
                     st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
+
+search_query = st.session_state.get('search_input', "")
 
 if search_query:
     results = df[df[field_map[search_type]].apply(lambda x: fuzzy_match(str(x), search_query))]
