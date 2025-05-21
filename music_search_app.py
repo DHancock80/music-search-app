@@ -60,7 +60,7 @@ def fuzzy_match(text, query, threshold=85):
 def render_discogs_link(release_id):
     return f"""
         <a href='https://www.discogs.com/release/{release_id}' target='_blank'>
-            <img data-discogs-icon src='' width='24' style='margin-left:10px;' />
+            <img data-discogs-icon src='https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_white.png' width='24' style='margin-left:10px;' />
         </a>
     """
 
