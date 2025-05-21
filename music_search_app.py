@@ -41,8 +41,10 @@ function updateDiscogsIcons() {
     document.querySelectorAll("img[data-discogs-icon]").forEach(img => img.src = iconSrc);
 }
 
-updateDiscogsIcons();
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateDiscogsIcons);
+document.addEventListener("DOMContentLoaded", function () {
+    updateDiscogsIcons();
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateDiscogsIcons);
+});
 </script>
 """, unsafe_allow_html=True)
 
@@ -65,7 +67,6 @@ def render_discogs_link(release_id):
 
 # Everything else in the original script remains below this point.
 # The icon will dynamically switch between black and white based on theme.
-
 
 def upload_to_github(file_path, repo, token, branch, commit_message):
     api_url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
