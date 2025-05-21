@@ -149,6 +149,30 @@ def load_data():
 
 # === UI ===
 st.title("Music Search App")
+st.markdown(f"""
+<script>
+function updateDiscogsIcons() {{
+    const isDark = document.body.classList.contains('dark');
+    document.querySelectorAll('[data-discogs-icon]').forEach(el => {{
+        el.src = isDark ? '{DISCOGS_ICON_WHITE}' : '{DISCOGS_ICON_BLACK}';
+    }});
+}}
+
+const observer = new MutationObserver(function(mutations) {{
+    mutations.forEach(function(mutation) {{
+        if (mutation.attributeName === 'class') {{
+            updateDiscogsIcons();
+        }}
+    }});
+}});
+
+document.addEventListener('DOMContentLoaded', function() {{
+    updateDiscogsIcons();
+    observer.observe(document.body, {{ attributes: true }});
+}});
+</script>
+""", unsafe_allow_html=True)
+
 search_query = st.text_input("Enter your search:", "")
 search_type = st.radio("Search by:", ["Song Title", "Artist", "Album"], horizontal=True)
 
@@ -181,32 +205,6 @@ if search_query:
     if results.empty:
         st.warning("No results found.")
     else:
-        st.markdown("""
-        <style>
-        div[data-testid="stButton"] > button {
-            background: none;
-            border: none;
-            padding: 0;
-            font-size: 14px;
-            text-decoration: underline;
-            color: var(--text-color);
-            cursor: pointer;
-        }
-        div[data-testid="stButton"] > button:hover {
-            color: var(--primary-color);
-        }
-        </style>
-        <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const logos = document.querySelectorAll('[data-discogs-icon]');
-            const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            logos.forEach(el => {
-                el.src = isDark ? '{DISCOGS_ICON_WHITE}' : '{DISCOGS_ICON_BLACK}';
-            });
-        });
-        </script>
-        """, unsafe_allow_html=True)
-
         for release_id, group in results.groupby('release_id'):
             first = group.iloc[0]
             cover_url = first.get('cover_art_final') or PLACEHOLDER_COVER
