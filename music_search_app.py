@@ -152,8 +152,7 @@ st.title("Music Search App")
 
 # Add a clear search button
 if st.button("🔄 New Search (Clear)"):
-    st.session_state['open_expander_id'] = None
-    st.session_state['search_input'] = ""
+    st.session_state.clear()
     st.rerun()
 
 search_query = st.text_input("Enter your search:", value=st.session_state.get('search_input', ""), key="search_input")
