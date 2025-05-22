@@ -58,6 +58,32 @@ def get_suggestions(df, field, prefix, max_results=10):
     matches.sort(key=lambda x: 0 if normalize(x).startswith(normalized_prefix) else 1)
     return matches[:max_results]
 
+# === UI ===
+st.title("Music Search App")
+if st.button("🔄 New Search (Clear)"):
+    st.session_state.clear()
+    st.rerun()
+
+search_type = st.radio("Search by:", ["Song Title", "Artist", "Album"], horizontal=True, key="search_type")
+df = load_data()
+field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title"}
+field = field_map[st.session_state['search_type']]
+
+# --- Real-time suggestions ---
+search_input = st.text_input("Enter your search:", value=st.session_state['search_input'])
+if search_input != st.session_state['search_input']:
+    st.session_state['search_input'] = search_input
+    st.session_state['suggestions'] = get_suggestions(df, field, search_input)
+    st.session_state['show_suggestions'] = True
+    st.experimental_rerun()
+
+if st.session_state.get('show_suggestions') and st.session_state['suggestions']:
+    for suggestion in st.session_state['suggestions']:
+        if st.button(suggestion, key=f"suggestion_{suggestion}"):
+            st.session_state['search_input'] = suggestion
+            st.session_state['show_suggestions'] = False
+            st.rerun()
+
 def upload_to_github(file_path, repo, token, branch, commit_message):
     api_url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
     headers = {
