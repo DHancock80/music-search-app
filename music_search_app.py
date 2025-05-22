@@ -38,7 +38,6 @@ if 'show_suggestions' not in st.session_state:
 if 'suggestions' not in st.session_state:
     st.session_state['suggestions'] = []
 
-# === Helper Functions ===
 def normalize(text):
     if pd.isna(text): return ''
     text = str(text).lower()
@@ -166,45 +165,36 @@ def load_data():
         df = pd.DataFrame()
     return df
 
-# Suggestion Display Function
-def display_suggestions(suggestions):
-    if not suggestions:
-        return
-    st.markdown("<div class='animate-fade-in'>", unsafe_allow_html=True)
-    for suggestion in suggestions:
-        if st.button(f"🔍 {suggestion}", key=f"sugg_{suggestion}"):
-            st.session_state.search_input = suggestion
-            st.session_state.show_suggestions = False
-            st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
+def update_suggestions():
+    df = load_data()
+    field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title"}
+    field = field_map[st.session_state['search_type']]
+    st.session_state['suggestions'] = get_suggestions(df, field, st.session_state['search_input'])
+    st.session_state['show_suggestions'] = True
 
-# Render the real-time search bar
+def display_suggestions():
+    if st.session_state.get('show_suggestions', False) and st.session_state['suggestions']:
+        for suggestion in st.session_state['suggestions']:
+            if st.button(suggestion, key=f"sugg_{suggestion}"):
+                st.session_state['search_input'] = suggestion
+                st.session_state['show_suggestions'] = False
+                st.rerun()
+
+# UI Starts
 st.title("Music Search App")
-
 if st.button("🔄 New Search (Clear)"):
     st.session_state.clear()
     st.rerun()
 
 search_type = st.radio("Search by:", ["Song Title", "Artist", "Album"], horizontal=True, key="search_type")
-search_input = st.text_input("Enter your search:", value=st.session_state.get('search_input', ""), key="search_input")
+search_input = st.text_input("Enter your search:", key="search_input", on_change=update_suggestions)
+display_suggestions()
 
-if len(search_input) >= 2:
+if st.session_state['search_input']:
     df = load_data()
     field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title"}
-    suggestions = get_suggestions(df, field_map[search_type], search_input)
-    display_suggestions(suggestions)
-
-if search_input:
-    if 'df' not in locals():
-        df = load_data()
-    if search_type == "Song Title":
-        results = df[df['Track Title'].apply(lambda x: fuzzy_match(str(x), search_input))]
-    elif search_type == "Artist":
-        results = df[df['Artist'].apply(lambda x: fuzzy_match(str(x), search_input))]
-    elif search_type == "Album":
-        results = df[df['Title'].apply(lambda x: fuzzy_match(str(x), search_input))]
-    else:
-        results = pd.DataFrame()
+    field = field_map[st.session_state['search_type']]
+    results = df[df[field].apply(lambda x: fuzzy_match(str(x), st.session_state['search_input']))]
 
     unique_releases = results[['release_id', 'Format']].drop_duplicates()
     format_counts = {
@@ -216,7 +206,6 @@ if search_input:
 
     format_filter = st.radio('Format:', [f"All ({format_counts['All']})", f"Album ({format_counts['Album']})", f"Single ({format_counts['Single']})", f"Video ({format_counts['Video']})"], horizontal=True)
     format_clean = format_filter.split()[0]
-
     if format_clean != 'All':
         pattern = 'album|compilation|comp' if format_clean == 'Album' else format_clean.lower()
         results = results[results['Format'].str.lower().str.contains(pattern, na=False)]
