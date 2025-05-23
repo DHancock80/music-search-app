@@ -5,3 +5,4 @@ streamlit-aggrid
 fuzzywuzzy
 python-Levenshtein
 PyGithub
+streamlit-searchbox
