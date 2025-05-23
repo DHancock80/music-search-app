@@ -192,14 +192,17 @@ if search_query:
     field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title"}
     field = field_map[search_type]
 
-    if search_type == "Song Title":
-        results = df[df['Track Title'].apply(lambda x: fuzzy_match(str(x), search_query))]
-    elif search_type == "Artist":
-        results = df[df['Artist'].apply(lambda x: fuzzy_match(str(x), search_query))]
-    elif search_type == "Album":
-        results = df[df['Title'].apply(lambda x: fuzzy_match(str(x), search_query))]
-    else:
-        results = pd.DataFrame()
+if search_type == "Song Title":
+    results = df[df['Track Title'].apply(lambda x: fuzzy_match(str(x), search_query))]
+elif search_type == "Artist":
+    results = df[df['Artist'].apply(lambda x: fuzzy_match(str(x), search_query))]
+elif search_type == "Album":
+    results = df[df['Title'].apply(lambda x: fuzzy_match(str(x), search_query))]
+else:
+    results = pd.DataFrame()
+
+# Store base search results to persist through reruns
+st.session_state['base_results'] = results
 
     unique_releases = results[['release_id', 'Format']].drop_duplicates()
     format_counts = {
@@ -212,6 +215,8 @@ if search_query:
     format_filter = st.radio('Format:', [f"All ({format_counts['All']})", f"Album ({format_counts['Album']})", f"Single ({format_counts['Single']})", f"Video ({format_counts['Video']})"], horizontal=True)
     format_clean = format_filter.split()[0]
 
+if 'base_results' in st.session_state:
+    results = st.session_state['base_results']
     if format_clean != 'All':
         pattern = 'album|compilation|comp' if format_clean == 'Album' else format_clean.lower()
         results = results[results['Format'].fillna('').str.lower().str.contains(pattern, na=False)]
