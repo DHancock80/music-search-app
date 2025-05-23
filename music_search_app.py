@@ -173,12 +173,20 @@ if st.button("🔄 New Search (Clear)"):
 search_type = st.radio("Search by:", ["Song Title", "Artist", "Album"], horizontal=True, key="search_type")
 df = load_data()
 
-# Clear problematic session state if leftover from previous interaction
+# Use streamlit-searchbox safely, recover on internal crash
 try:
     search_query = st_searchbox(get_autocomplete_suggestions, key="search_input")
 except TypeError:
     del st.session_state["search_input"]
     st.rerun()
+
+# Persist search across reruns (e.g., when clicking filter buttons)
+if search_query:
+    st.session_state['last_query'] = search_query
+elif 'last_query' in st.session_state:
+    search_query = st.session_state['last_query']
+else:
+    search_query = ""
 
 if search_query:
     st.session_state['search_input'] = search_query
@@ -209,9 +217,27 @@ if search_query:
         pattern = 'album|compilation|comp' if format_clean == 'Album' else format_clean.lower()
         results = results[results['Format'].str.lower().str.contains(pattern, na=False)]
 
-    if results.empty:
-        st.warning("No results found.")
-    else:
+   if results.empty:
+    st.warning("No results found.")
+else:
+    # 🔽 PASTE CSS STYLING HERE
+    st.markdown("""
+    <style>
+    div[data-testid="stButton"] > button {
+        background: none;
+        border: none;
+        padding: 0;
+        font-size: 14px;
+        text-decoration: underline;
+        color: var(--text-color);
+        cursor: pointer;
+    }
+    div[data-testid="stButton"] > button:hover {
+        color: var(--primary-color);
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
         for release_id, group in results.groupby('release_id'):
             first = group.iloc[0]
             cover_url = first.get('cover_art_final') or PLACEHOLDER_COVER
