@@ -164,27 +164,30 @@ def get_autocomplete_suggestions(prefix: str):
     for field in fields:
         column = df[field].dropna().astype(str).unique()
         for val in column:
-            val_norm = normalize(val)
+            val_stripped = str(val).strip()
+            val_norm = normalize(val_stripped)
             val_words = val_norm.split()
 
             if len(val_norm) < 3:
-                continue  # Skip very short junk values
+                continue  # skip short/junk values unless exact
 
-            # Highest score for full exact normalized match
+            # Priority scores
             if val_norm == prefix_norm:
-                score = 1100
-            # Prefix words match in correct order
+                score = 2000  # exact match
             elif val_words[:len(prefix_words)] == prefix_words:
-                score = 1000
-            # Starts with at least first 2 prefix words
+                score = 1800  # prefix word match
+            elif val_norm.startswith(prefix_norm):
+                score = 1700
             elif len(prefix_words) >= 2 and val_norm.startswith(" ".join(prefix_words[:2])):
-                score = 950
-            # Fuzzy fallback
+                score = 1600
             else:
                 score = fuzz.partial_ratio(prefix_norm, val_norm)
 
-            if val not in seen or score > seen[val]:
-                seen[val] = score
+            # Slight boost for longer, meaningful matches
+            score += len(val_norm) // 5
+
+            if val_stripped not in seen or score > seen[val_stripped]:
+                seen[val_stripped] = score
 
     sorted_results = sorted(seen.items(), key=lambda x: (-x[1], x[0]))
     return [val for val, _ in sorted_results[:15]]
