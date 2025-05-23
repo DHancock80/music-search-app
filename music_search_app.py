@@ -146,12 +146,17 @@ def get_autocomplete_suggestions(prefix: str):
     suggestions = []
     for val in column:
         norm_val = normalize(val)
+        words = norm_val.split()
+
         if norm_val == normalized_prefix:
             score = 1000  # exact match
+        elif words and words[0] == normalized_prefix:
+            score = 950  # matches first word exactly
         elif norm_val.startswith(normalized_prefix):
-            score = 900  # strong prefix match
+            score = 900  # starts with the prefix
         else:
             score = fuzz.partial_ratio(norm_val, normalized_prefix)
+
         suggestions.append((val, score))
 
     sorted_matches = sorted(suggestions, key=lambda x: -x[1])
