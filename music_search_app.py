@@ -153,49 +153,51 @@ def load_data():
 
 def get_autocomplete_suggestions(prefix: str):
     df = load_data()
+    search_type = st.session_state.get('search_type', 'All')
+    normalized_prefix = normalize(prefix)
+
     field_map = {
-        "Song Title": "Track Title",
-        "Artist": "Artist",
-        "Album": "Title",
+        "Song Title": ["Track Title"],
+        "Artist": ["Artist"],
+        "Album": ["Title"],
         "All": ["Track Title", "Artist", "Title"]
     }
-    search_fields = field_map.get(st.session_state["search_type"], ["Track Title"])
 
-    if isinstance(search_fields, str):
-        search_fields = [search_fields]
+    fields = field_map.get(search_type, ["Track Title"])
+    suggestions = {}
 
-    normalized_prefix = normalize(prefix)
-    scored = []
-
-    seen = set()
-
-    for field in search_fields:
+    for field in fields:
+        if field not in df.columns:
+            continue
         for val in df[field].dropna().astype(str).unique():
-            if val in seen:
-                continue
-            seen.add(val)
-
             norm_val = normalize(val)
-            score = 0
+            if not norm_val: continue
+            words = norm_val.split()
 
+            # Scoring logic
             if norm_val == normalized_prefix:
-                score = 1000  # exact match
+                score = 1000
             elif norm_val.startswith(normalized_prefix):
-                score = 950  # full prefix match
-            elif normalized_prefix in norm_val:
-                score = 850  # partial phrase match
-            elif any(normalized_prefix == word for word in norm_val.split()):
-                score = 700  # individual word match
+                score = 950
+            elif words and words[0] == normalized_prefix:
+                score = 925
+            elif normalized_prefix in words:
+                score = 900
             else:
-                fuzzy_score = fuzz.partial_ratio(norm_val, normalized_prefix)
-                if fuzzy_score >= 60:
-                    score = fuzzy_score
+                score = fuzz.partial_ratio(norm_val, normalized_prefix)
 
-            if score > 0:
-                scored.append((val, score))
+            # Penalize very short entries
+            if len(norm_val) < 4:
+                score -= 200
 
-    sorted_suggestions = sorted(scored, key=lambda x: -x[1])
-    return [x[0] for x in sorted_suggestions[:20]]
+            # Boost longer more descriptive titles
+            score += min(len(norm_val), 50)
+
+            if val not in suggestions or score > suggestions[val]:
+                suggestions[val] = score
+
+    sorted_matches = sorted(suggestions.items(), key=lambda x: -x[1])
+    return [x[0] for x in sorted_matches[:15]]
 
 # === UI ===
 st.title("Music Search App")
