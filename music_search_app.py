@@ -141,11 +141,23 @@ def get_autocomplete_suggestions(prefix: str):
     field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title"}
     field = field_map[st.session_state['search_type']]
     column = df[field].dropna().astype(str).unique()
-
     normalized_prefix = normalize(prefix)
-    scored_matches = [(val, fuzz.partial_ratio(normalize(val), normalized_prefix)) for val in column]
-    scored_matches = [x for x in scored_matches if x[1] >= 75]  # adjust threshold as needed
-    sorted_matches = sorted(scored_matches, key=lambda x: -x[1])
+
+    scored_matches = [
+        (val, fuzz.partial_ratio(normalize(val), normalized_prefix))
+        for val in column
+    ]
+    # Filter based on fuzzy match threshold
+    scored_matches = [x for x in scored_matches if x[1] >= 75]
+
+    # Prioritize matches that start with the prefix
+    starts_with = [x for x in scored_matches if normalize(x[0]).startswith(normalized_prefix)]
+    contains_later = sorted(
+        [x for x in scored_matches if not normalize(x[0]).startswith(normalized_prefix)],
+        key=lambda x: normalize(x[0])
+    )
+
+    sorted_matches = starts_with + contains_later
     return [x[0] for x in sorted_matches[:10]]
 
 # === UI ===
