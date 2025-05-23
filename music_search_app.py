@@ -1,3 +1,5 @@
+# Version 1.3 - Integrated streamlit-searchbox for real-time autocomplete
+
 import pandas as pd
 import base64
 import requests
@@ -8,6 +10,7 @@ import unicodedata
 from datetime import datetime
 import streamlit as st
 from rapidfuzz import fuzz
+from streamlit_searchbox import st_searchbox
 
 # Constants
 DISCOGS_ICON_WHITE = 'https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_white.png'
@@ -44,16 +47,6 @@ def normalize(text):
 
 def fuzzy_match(text, query, threshold=85):
     return fuzz.partial_ratio(normalize(text), normalize(query)) >= threshold
-
-def get_suggestions(df, field, prefix, max_results=10):
-    if df.empty or not prefix or len(prefix) < 2:
-        return []
-    normalized_prefix = normalize(prefix)
-    column = df[field].dropna().astype(str)
-    unique_values = column.drop_duplicates().values
-    matches = [val for val in unique_values if normalized_prefix in normalize(val)]
-    matches.sort(key=lambda x: 0 if normalize(x).startswith(normalized_prefix) else 1)
-    return matches[:max_results]
 
 def upload_to_github(file_path, repo, token, branch, commit_message):
     api_url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
@@ -118,20 +111,6 @@ def reset_cover_override(release_id):
     except Exception as e:
         st.error(f"Reset failed: {e}")
 
-def fetch_discogs_cover(release_id):
-    headers = {"Authorization": f"Discogs token={DISCOGS_API_TOKEN}"}
-    try:
-        response = requests.get(f"https://api.discogs.com/releases/{release_id}", headers=headers)
-        if response.status_code == 200:
-            data = response.json()
-            if 'images' in data and len(data['images']) > 0:
-                cover_url = data['images'][0]['uri']
-                update_cover_override(release_id, cover_url)
-                return cover_url
-    except Exception as e:
-        st.warning(f"Discogs fetch failed for {release_id}: {e}")
-    return None
-
 @st.cache_data
 def load_data():
     try:
@@ -150,10 +129,6 @@ def load_data():
                 overrides = overrides.drop_duplicates(subset='release_id', keep='last')
                 df = df.merge(overrides, on='release_id', how='left', suffixes=('', '_override'))
                 df['cover_art_final'] = df['cover_url'].combine_first(df['cover_art'])
-                for idx, row in df[df['cover_art_final'].isna()].iterrows():
-                    new_cover = fetch_discogs_cover(row['release_id'])
-                    if new_cover:
-                        df.at[idx, 'cover_art_final'] = new_cover
         except Exception as e:
             st.warning(f"Could not read cover overrides: {e}")
             df['cover_art_final'] = df['cover_art']
@@ -161,6 +136,16 @@ def load_data():
         st.error(f"Error loading the CSV file: {e}")
         df = pd.DataFrame()
     return df
+
+def get_autocomplete_suggestions(prefix: str):
+    df = load_data()
+    field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title"}
+    field = field_map[st.session_state['search_type']]
+    column = df[field].dropna().astype(str).unique()
+    normalized_prefix = normalize(prefix)
+    matches = [val for val in column if normalized_prefix in normalize(val)]
+    matches.sort(key=lambda x: 0 if normalize(x).startswith(normalized_prefix) else 1)
+    return matches[:10]
 
 # === UI ===
 st.title("Music Search App")
@@ -171,18 +156,14 @@ if st.button("🔄 New Search (Clear)"):
 
 search_type = st.radio("Search by:", ["Song Title", "Artist", "Album"], horizontal=True, key="search_type")
 df = load_data()
-field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title"}
-field = field_map[st.session_state['search_type']]
 
-suggestions = get_suggestions(df, field, st.session_state['search_input']) if st.session_state['search_input'] else []
-search_input = st.selectbox("Enter your search:", options=suggestions if suggestions else [st.session_state['search_input']], key="search_input_select", index=0)
+search_query = st_searchbox(get_autocomplete_suggestions, key="search_input")
 
-if search_input != st.session_state['search_input']:
-    st.session_state['search_input'] = search_input
-    st.experimental_rerun()
-
-search_query = st.session_state['search_input']
 if search_query:
+    st.session_state['search_input'] = search_query
+    field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title"}
+    field = field_map[search_type]
+
     if search_type == "Song Title":
         results = df[df['Track Title'].apply(lambda x: fuzzy_match(str(x), search_query))]
     elif search_type == "Artist":
@@ -210,23 +191,6 @@ if search_query:
     if results.empty:
         st.warning("No results found.")
     else:
-        st.markdown("""
-        <style>
-        div[data-testid="stButton"] > button {
-            background: none;
-            border: none;
-            padding: 0;
-            font-size: 14px;
-            text-decoration: underline;
-            color: var(--text-color);
-            cursor: pointer;
-        }
-        div[data-testid="stButton"] > button:hover {
-            color: var(--primary-color);
-        }
-        </style>
-        """, unsafe_allow_html=True)
-
         for release_id, group in results.groupby('release_id'):
             first = group.iloc[0]
             cover_url = first.get('cover_art_final') or PLACEHOLDER_COVER
@@ -240,8 +204,6 @@ if search_query:
                         <img src="{cover_url}" width="120" style="border-radius:8px;" />
                     </a>
                 """, unsafe_allow_html=True)
-                if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
-                    st.session_state['open_expander_id'] = release_id if st.session_state['open_expander_id'] != release_id else None
 
             with cols[1]:
                 theme = st.get_option("theme.base")
@@ -255,6 +217,9 @@ if search_query:
                     </div>
                     <div><strong>Artist:</strong> {artist}</div>
                 """, unsafe_allow_html=True)
+
+            if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
+                st.session_state['open_expander_id'] = release_id if st.session_state['open_expander_id'] != release_id else None
 
             is_expanded = st.session_state.get('open_expander_id') == release_id
             if is_expanded:
