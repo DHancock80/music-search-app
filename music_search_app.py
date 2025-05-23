@@ -58,32 +58,6 @@ def get_suggestions(df, field, prefix, max_results=10):
     matches.sort(key=lambda x: 0 if normalize(x).startswith(normalized_prefix) else 1)
     return matches[:max_results]
 
-# === UI ===
-st.title("Music Search App")
-if st.button("🔄 New Search (Clear)"):
-    st.session_state.clear()
-    st.rerun()
-
-search_type = st.radio("Search by:", ["Song Title", "Artist", "Album"], horizontal=True, key="search_type")
-df = load_data()
-field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title"}
-field = field_map[st.session_state['search_type']]
-
-# --- Real-time suggestions ---
-search_input = st.text_input("Enter your search:", value=st.session_state['search_input'])
-if search_input != st.session_state['search_input']:
-    st.session_state['search_input'] = search_input
-    st.session_state['suggestions'] = get_suggestions(df, field, search_input)
-    st.session_state['show_suggestions'] = True
-    st.experimental_rerun()
-
-if st.session_state.get('show_suggestions') and st.session_state['suggestions']:
-    for suggestion in st.session_state['suggestions']:
-        if st.button(suggestion, key=f"suggestion_{suggestion}"):
-            st.session_state['search_input'] = suggestion
-            st.session_state['show_suggestions'] = False
-            st.rerun()
-
 def upload_to_github(file_path, repo, token, branch, commit_message):
     api_url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
     headers = {
@@ -191,36 +165,42 @@ def load_data():
         df = pd.DataFrame()
     return df
 
-def update_suggestions():
-    df = load_data()
-    field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title"}
-    field = field_map[st.session_state['search_type']]
-    st.session_state['suggestions'] = get_suggestions(df, field, st.session_state['search_input'])
-    st.session_state['show_suggestions'] = True
-
-def display_suggestions():
-    if st.session_state.get('show_suggestions', False) and st.session_state['suggestions']:
-        for suggestion in st.session_state['suggestions']:
-            if st.button(suggestion, key=f"sugg_{suggestion}"):
-                st.session_state['search_input'] = suggestion
-                st.session_state['show_suggestions'] = False
-                st.rerun()
-
-# UI Starts
+# === UI ===
 st.title("Music Search App")
+
 if st.button("🔄 New Search (Clear)"):
     st.session_state.clear()
     st.rerun()
 
 search_type = st.radio("Search by:", ["Song Title", "Artist", "Album"], horizontal=True, key="search_type")
-search_input = st.text_input("Enter your search:", key="search_input", on_change=update_suggestions)
-display_suggestions()
+df = load_data()
+field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title"}
+field = field_map[st.session_state['search_type']]
 
-if st.session_state['search_input']:
-    df = load_data()
-    field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title"}
-    field = field_map[st.session_state['search_type']]
-    results = df[df[field].apply(lambda x: fuzzy_match(str(x), st.session_state['search_input']))]
+search_input = st.text_input("Enter your search:", value=st.session_state['search_input'])
+if search_input != st.session_state['search_input']:
+    st.session_state['search_input'] = search_input
+    st.session_state['suggestions'] = get_suggestions(df, field, search_input)
+    st.session_state['show_suggestions'] = True
+    st.experimental_rerun()
+
+if st.session_state.get('show_suggestions') and st.session_state['suggestions']:
+    for suggestion in st.session_state['suggestions']:
+        if st.button(suggestion, key=f"suggestion_{suggestion}"):
+            st.session_state['search_input'] = suggestion
+            st.session_state['show_suggestions'] = False
+            st.rerun()
+
+search_query = st.session_state['search_input']
+if search_query:
+    if search_type == "Song Title":
+        results = df[df['Track Title'].apply(lambda x: fuzzy_match(str(x), search_query))]
+    elif search_type == "Artist":
+        results = df[df['Artist'].apply(lambda x: fuzzy_match(str(x), search_query))]
+    elif search_type == "Album":
+        results = df[df['Title'].apply(lambda x: fuzzy_match(str(x), search_query))]
+    else:
+        results = pd.DataFrame()
 
     unique_releases = results[['release_id', 'Format']].drop_duplicates()
     format_counts = {
@@ -232,6 +212,7 @@ if st.session_state['search_input']:
 
     format_filter = st.radio('Format:', [f"All ({format_counts['All']})", f"Album ({format_counts['Album']})", f"Single ({format_counts['Single']})", f"Video ({format_counts['Video']})"], horizontal=True)
     format_clean = format_filter.split()[0]
+
     if format_clean != 'All':
         pattern = 'album|compilation|comp' if format_clean == 'Album' else format_clean.lower()
         results = results[results['Format'].str.lower().str.contains(pattern, na=False)]
