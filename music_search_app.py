@@ -237,7 +237,7 @@ else:
     </style>
     """, unsafe_allow_html=True)
 
-    for release_id, group in results.groupby('release_id')
+    for release_id, group in results.groupby('release_id'):
             first = group.iloc[0]
             cover_url = first.get('cover_art_final') or PLACEHOLDER_COVER
             artist = "Various Artists" if group['Artist'].nunique() > 1 else group['Artist'].iloc[0]
