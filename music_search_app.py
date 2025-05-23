@@ -1,4 +1,4 @@
-# Version 1.3 - Integrated streamlit-searchbox for real-time autocomplete
+# Version 1.4 - Autocomplete + Persistent Search + UI Fixes
 
 import pandas as pd
 import base64
@@ -32,7 +32,6 @@ GITHUB_BRANCH = 'main'
 
 if 'open_expander_id' not in st.session_state:
     st.session_state['open_expander_id'] = None
-
 if 'search_type' not in st.session_state:
     st.session_state['search_type'] = "Song Title"
 
@@ -180,7 +179,7 @@ except TypeError:
     del st.session_state["search_input"]
     st.rerun()
 
-# Persist search across reruns (e.g., when clicking filter buttons)
+# Persist search across reruns
 if search_query:
     st.session_state['last_query'] = search_query
 elif 'last_query' in st.session_state:
@@ -217,27 +216,27 @@ if search_query:
         pattern = 'album|compilation|comp' if format_clean == 'Album' else format_clean.lower()
         results = results[results['Format'].str.lower().str.contains(pattern, na=False)]
 
-if results.empty:
-    st.warning("No results found.")
-else:
-    st.markdown("""
-    <style>
-    div[data-testid="stButton"] > button {
-        background: none;
-        border: none;
-        padding: 0;
-        font-size: 14px;
-        text-decoration: underline;
-        color: var(--text-color);
-        cursor: pointer;
-    }
-    div[data-testid="stButton"] > button:hover {
-        color: var(--primary-color);
-    }
-    </style>
-    """, unsafe_allow_html=True)
+    if results.empty:
+        st.warning("No results found.")
+    else:
+        st.markdown("""
+        <style>
+        div[data-testid="stButton"] > button {
+            background: none;
+            border: none;
+            padding: 0;
+            font-size: 14px;
+            text-decoration: underline;
+            color: var(--text-color);
+            cursor: pointer;
+        }
+        div[data-testid="stButton"] > button:hover {
+            color: var(--primary-color);
+        }
+        </style>
+        """, unsafe_allow_html=True)
 
-    for release_id, group in results.groupby('release_id'):
+        for release_id, group in results.groupby('release_id'):
             first = group.iloc[0]
             cover_url = first.get('cover_art_final') or PLACEHOLDER_COVER
             artist = "Various Artists" if group['Artist'].nunique() > 1 else group['Artist'].iloc[0]
@@ -246,8 +245,8 @@ else:
             cols = st.columns([1, 5])
             with cols[0]:
                 st.markdown(f"""
-                    <a href="{cover_url}" target="_blank">
-                        <img src="{cover_url}" width="120" style="border-radius:8px;" />
+                    <a href=\"{cover_url}\" target=\"_blank\">
+                        <img src=\"{cover_url}\" width=\"120\" style=\"border-radius:8px;\" />
                     </a>
                 """, unsafe_allow_html=True)
 
@@ -255,10 +254,10 @@ else:
                 theme = st.get_option("theme.base")
                 icon_url = DISCOGS_ICON_BLACK if theme == "light" else DISCOGS_ICON_WHITE
                 st.markdown(f"""
-                    <div style="display:flex;justify-content:space-between;align-items:center;">
-                        <div style="font-size:20px;font-weight:600;">{title}</div>
-                        <a href="https://www.discogs.com/release/{release_id}" target="_blank">
-                            <img src="{icon_url}" width="24" style="margin-left:10px;" />
+                    <div style=\"display:flex;justify-content:space-between;align-items:center;\">
+                        <div style=\"font-size:20px;font-weight:600;\">{title}</div>
+                        <a href=\"https://www.discogs.com/release/{release_id}\" target=\"_blank\">
+                            <img src=\"{icon_url}\" width=\"24\" style=\"margin-left:10px;\" />
                         </a>
                     </div>
                     <div><strong>Artist:</strong> {artist}</div>
