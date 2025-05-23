@@ -153,51 +153,41 @@ def load_data():
 
 def get_autocomplete_suggestions(prefix: str):
     df = load_data()
-    search_type = st.session_state.get('search_type', 'All')
-    normalized_prefix = normalize(prefix)
-
     field_map = {
-        "Song Title": ["Track Title"],
-        "Artist": ["Artist"],
-        "Album": ["Title"],
+        "Song Title": "Track Title",
+        "Artist": "Artist",
+        "Album": "Title",
         "All": ["Track Title", "Artist", "Title"]
     }
+    search_fields = field_map.get(st.session_state["search_type"], ["Track Title"])
 
-    fields = field_map.get(search_type, ["Track Title"])
+    if isinstance(search_fields, str):
+        search_fields = [search_fields]
+
+    normalized_prefix = normalize(prefix)
     suggestions = {}
 
-    for field in fields:
-        if field not in df.columns:
-            continue
+    for field in search_fields:
         for val in df[field].dropna().astype(str).unique():
             norm_val = normalize(val)
-            if not norm_val: continue
-            words = norm_val.split()
 
-            # Scoring logic
             if norm_val == normalized_prefix:
-                score = 1000
+                score = 1000  # exact match
             elif norm_val.startswith(normalized_prefix):
-                score = 950
-            elif words and words[0] == normalized_prefix:
-                score = 925
-            elif normalized_prefix in words:
-                score = 900
+                score = 900  # starts with
+            elif normalized_prefix in norm_val.split():
+                score = 800  # whole word
+            elif normalized_prefix in norm_val:
+                score = 700  # substring
             else:
                 score = fuzz.partial_ratio(norm_val, normalized_prefix)
 
-            # Penalize very short entries
-            if len(norm_val) < 4:
-                score -= 200
-
-            # Boost longer more descriptive titles
-            score += min(len(norm_val), 50)
-
-            if val not in suggestions or score > suggestions[val]:
+            # Store the highest score for each unique suggestion
+            if val not in suggestions or suggestions[val] < score:
                 suggestions[val] = score
 
-    sorted_matches = sorted(suggestions.items(), key=lambda x: -x[1])
-    return [x[0] for x in sorted_matches[:15]]
+    sorted_suggestions = sorted(suggestions.items(), key=lambda x: -x[1])
+    return [x[0] for x in sorted_suggestions[:20]]
 
 # === UI ===
 st.title("Music Search App")
