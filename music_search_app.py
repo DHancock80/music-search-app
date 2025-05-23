@@ -296,24 +296,73 @@ if search_query:
     if results.empty:
         st.warning("No results found.")
     else:
-        for release_id, group in results.groupby("release_id"):
+               for release_id, group in results.groupby("release_id"):
             first = group.iloc[0]
             cover_url = first.get("cover_art_final") or PLACEHOLDER_COVER
             artist = "Various Artists" if group["Artist"].nunique() > 1 else group["Artist"].iloc[0]
             title = first["Title"]
 
+            st.markdown("""
+            <style>
+            @media (max-width: 600px) {
+                .album-container {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 0.25rem;
+                }
+                .album-text {
+                    font-size: 16px;
+                    text-align: center;
+                }
+                .album-artist {
+                    font-size: 14px;
+                    text-align: center;
+                }
+                .cover-img {
+                    width: 100px !important;
+                }
+                .tracklist-table td, .tracklist-table th {
+                    font-size: 13px;
+                    white-space: normal !important;
+                }
+            }
+            @media (min-width: 601px) {
+                .album-container {
+                    display: flex;
+                    flex-direction: row;
+                    gap: 1rem;
+                    align-items: center;
+                }
+                .album-text {
+                    font-size: 20px;
+                    font-weight: 600;
+                }
+                .album-artist {
+                    font-size: 16px;
+                }
+                .cover-img {
+                    width: 120px !important;
+                }
+            }
+            </style>
+            """, unsafe_allow_html=True)
+
             st.markdown(f"""
-                <div class="album-container">
-                    <div class="album-img">
-                        <a href="{cover_url}" target="_blank">
-                            <img src="{cover_url}" width="100" style="border-radius:8px;" />
+            <div class="album-container">
+                <a href="{cover_url}" target="_blank">
+                    <img src="{cover_url}" class="cover-img" style="border-radius:8px;" />
+                </a>
+                <div>
+                    <div class="album-text">{title}</div>
+                    <div class="album-artist"><strong>Artist:</strong> {artist}</div>
+                    <div style="margin-top:4px;">
+                        <a href="https://www.discogs.com/release/{release_id}" target="_blank">
+                            <img src="{DISCOGS_ICON_BLACK if st.get_option('theme.base') == 'light' else DISCOGS_ICON_WHITE}" width="20"/>
                         </a>
                     </div>
-                    <div class="album-details">
-                        <div style="font-size:18px;font-weight:600;">{title}</div>
-                        <div><strong>Artist:</strong> {artist}</div>
-                    </div>
                 </div>
+            </div>
             """, unsafe_allow_html=True)
 
             if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
@@ -333,7 +382,6 @@ if search_query:
                                 reset_cover_override(release_id)
             else:
                 with st.expander("Click to view tracklist"):
-                    st.markdown('<div class="scroll-table">', unsafe_allow_html=True)
                     st.dataframe(
                         group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
                             'Track Title': 'Song', 'CD': 'Disc', 'Track Number': 'Track'
@@ -341,6 +389,6 @@ if search_query:
                         use_container_width=True,
                         hide_index=True
                     )
-                    st.markdown('</div>', unsafe_allow_html=True)
+
 else:
     st.caption("Please enter a search query above.")
