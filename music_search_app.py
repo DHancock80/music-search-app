@@ -210,7 +210,6 @@ if st.button("🔄 New Search (Clear)"):
 search_type = st.radio("Search by:", ["All", "Song Title", "Artist", "Album"], horizontal=True, key="search_type")
 df = load_data()
 
-# Single searchbox with persistent fallback
 try:
     search_query = st_searchbox(get_autocomplete_suggestions, key="search_autocomplete")
     if search_query:
@@ -257,6 +256,8 @@ if search_query:
     if results.empty:
         st.warning("No results found.")
     else:
+        simple_view = st.checkbox("📱 Enable Simple View (Mobile-Friendly List)", value=False)
+
         st.markdown("""
         <style>
         div[data-testid="stButton"] > button {
@@ -273,18 +274,18 @@ if search_query:
         }
 
         .stDataFrame > div {
-            font-size: 12px !important;
+            font-size: 11px !important;
         }
 
         .stDataFrame table td {
             white-space: normal !important;
             word-break: break-word !important;
-            padding: 4px 6px !important;
+            padding: 2px 4px !important;
         }
 
         .stDataFrame table th {
-            font-size: 12px !important;
-            padding: 4px 6px !important;
+            font-size: 11px !important;
+            padding: 2px 4px !important;
         }
         </style>
         """, unsafe_allow_html=True)
@@ -295,26 +296,29 @@ if search_query:
             artist = "Various Artists" if group["Artist"].nunique() > 1 else group["Artist"].iloc[0]
             title = first["Title"]
 
-            cols = st.columns([1, 5])
-            with cols[0]:
-                st.markdown(f"""
-                    <a href="{cover_url}" target="_blank">
-                        <img src="{cover_url}" width="110" style="border-radius:8px;" />
-                    </a>
-                """, unsafe_allow_html=True)
-
-            with cols[1]:
-                theme = st.get_option("theme.base")
-                icon_url = DISCOGS_ICON_BLACK if theme == "light" else DISCOGS_ICON_WHITE
-                st.markdown(f"""
-                    <div style="display:flex;justify-content:space-between;align-items:center;">
-                        <div style="font-size:18px;font-weight:600;">{title}</div>
-                        <a href="https://www.discogs.com/release/{release_id}" target="_blank">
-                            <img src="{icon_url}" width="22" style="margin-left:10px;" />
+            if simple_view:
+                st.markdown(f"""<div style='margin-bottom:0.5rem;font-size:18px;font-weight:bold;'>{title}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='margin-bottom:0.5rem;font-size:14px;'>– {artist}</div>", unsafe_allow_html=True)
+            else:
+                cols = st.columns([1.2, 5])
+                with cols[0]:
+                    st.markdown(f"""
+                        <a href="{cover_url}" target="_blank">
+                            <img src="{cover_url}" width="100" style="border-radius:6px;" />
                         </a>
-                    </div>
-                    <div style="font-size:14px;"><strong>Artist:</strong> {artist}</div>
-                """, unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
+                with cols[1]:
+                    theme = st.get_option("theme.base")
+                    icon_url = DISCOGS_ICON_BLACK if theme == "light" else DISCOGS_ICON_WHITE
+                    st.markdown(f"""
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <div style="font-size:16px;font-weight:600;">{title}</div>
+                            <a href="https://www.discogs.com/release/{release_id}" target="_blank">
+                                <img src="{icon_url}" width="22" style="margin-left:10px;" />
+                            </a>
+                        </div>
+                        <div style="font-size:13px;"><strong>Artist:</strong> {artist}</div>
+                    """, unsafe_allow_html=True)
 
             if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
                 st.session_state["open_expander_id"] = release_id if st.session_state["open_expander_id"] != release_id else None
