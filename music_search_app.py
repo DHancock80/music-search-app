@@ -195,7 +195,7 @@ else:
     search_query = ""
 
 if search_query:
-    st.session_state['search_input'] = search_query
+    st.session_state['search_autocomplete'] = search_query
     field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title"}
     field = field_map[search_type]
 
