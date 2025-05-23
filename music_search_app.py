@@ -192,40 +192,40 @@ if search_query:
     field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title"}
     field = field_map[search_type]
 
-# Run fuzzy search based on search type
-if search_type == "Song Title":
-    base_results = df[df['Track Title'].apply(lambda x: fuzzy_match(str(x), search_query))]
-elif search_type == "Artist":
-    base_results = df[df['Artist'].apply(lambda x: fuzzy_match(str(x), search_query))]
-elif search_type == "Album":
-    base_results = df[df['Title'].apply(lambda x: fuzzy_match(str(x), search_query))]
-else:
-    base_results = pd.DataFrame()
+    # Run fuzzy search based on search type
+    if search_type == "Song Title":
+        base_results = df[df['Track Title'].apply(lambda x: fuzzy_match(str(x), search_query))]
+    elif search_type == "Artist":
+        base_results = df[df['Artist'].apply(lambda x: fuzzy_match(str(x), search_query))]
+    elif search_type == "Album":
+        base_results = df[df['Title'].apply(lambda x: fuzzy_match(str(x), search_query))]
+    else:
+        base_results = pd.DataFrame()
 
-# Calculate format counts from full results
-unique_releases = base_results[['release_id', 'Format']].drop_duplicates()
-format_counts = {
-    'All': len(base_results),
-    'Album': unique_releases['Format'].str.contains("album|compilation|comp", case=False, na=False).sum(),
-    'Single': unique_releases['Format'].str.contains("single", case=False, na=False).sum(),
-    'Video': unique_releases['Format'].str.contains("video", case=False, na=False).sum()
-}
+    # Format counts for radio filter
+    unique_releases = base_results[['release_id', 'Format']].drop_duplicates()
+    format_counts = {
+        'All': len(base_results),
+        'Album': unique_releases['Format'].str.contains("album|compilation|comp", case=False, na=False).sum(),
+        'Single': unique_releases['Format'].str.contains("single", case=False, na=False).sum(),
+        'Video': unique_releases['Format'].str.contains("video", case=False, na=False).sum()
+    }
 
-# Show filter and apply selected one
-format_filter = st.radio(
-    'Format:',
-    [f"All ({format_counts['All']})", f"Album ({format_counts['Album']})", f"Single ({format_counts['Single']})", f"Video ({format_counts['Video']})"],
-    horizontal=True
-)
-format_clean = format_filter.split()[0]
+    # Format filter radio
+    format_filter = st.radio(
+        'Format:',
+        [f"All ({format_counts['All']})", f"Album ({format_counts['Album']})", f"Single ({format_counts['Single']})", f"Video ({format_counts['Video']})"],
+        horizontal=True
+    )
+    format_clean = format_filter.split()[0]
 
-# Apply filter
-results = base_results
-if format_clean != 'All':
-    pattern = 'album|compilation|comp' if format_clean == 'Album' else format_clean.lower()
-    results = results[results['Format'].fillna('').str.lower().str.contains(pattern, na=False)]
+    # Apply filter
+    results = base_results
+    if format_clean != 'All':
+        pattern = 'album|compilation|comp' if format_clean == 'Album' else format_clean.lower()
+        results = results[results['Format'].fillna('').str.lower().str.contains(pattern, na=False)]
 
-
+    # === Show results ===
     if results.empty:
         st.warning("No results found.")
     else:
@@ -255,8 +255,8 @@ if format_clean != 'All':
             cols = st.columns([1, 5])
             with cols[0]:
                 st.markdown(f"""
-                    <a href=\"{cover_url}\" target=\"_blank\">
-                        <img src=\"{cover_url}\" width=\"120\" style=\"border-radius:8px;\" />
+                    <a href="{cover_url}" target="_blank">
+                        <img src="{cover_url}" width="120" style="border-radius:8px;" />
                     </a>
                 """, unsafe_allow_html=True)
 
@@ -264,10 +264,10 @@ if format_clean != 'All':
                 theme = st.get_option("theme.base")
                 icon_url = DISCOGS_ICON_BLACK if theme == "light" else DISCOGS_ICON_WHITE
                 st.markdown(f"""
-                    <div style=\"display:flex;justify-content:space-between;align-items:center;\">
-                        <div style=\"font-size:20px;font-weight:600;\">{title}</div>
-                        <a href=\"https://www.discogs.com/release/{release_id}\" target=\"_blank\">
-                            <img src=\"{icon_url}\" width=\"24\" style=\"margin-left:10px;\" />
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <div style="font-size:20px;font-weight:600;">{title}</div>
+                        <a href="https://www.discogs.com/release/{release_id}" target="_blank">
+                            <img src="{icon_url}" width="24" style="margin-left:10px;" />
                         </a>
                     </div>
                     <div><strong>Artist:</strong> {artist}</div>
@@ -293,5 +293,6 @@ if format_clean != 'All':
                     st.dataframe(group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
                         'Track Title': 'Song', 'CD': 'Disc', 'Track Number': 'Track'
                     }).reset_index(drop=True), use_container_width=True, hide_index=True)
+
 else:
     st.caption("Please enter a search query above.")
