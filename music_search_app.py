@@ -179,7 +179,14 @@ except TypeError:
     del st.session_state["search_input"]
     st.rerun()
 
-# Persist search across reruns
+# === Search box with persistence ===
+try:
+    search_query = st_searchbox(get_autocomplete_suggestions, key="search_input")
+except TypeError:
+    del st.session_state["search_input"]
+    st.rerun()
+
+# Persist search across reruns (due to filter changes)
 if search_query:
     st.session_state['last_query'] = search_query
 elif 'last_query' in st.session_state:
@@ -202,7 +209,7 @@ if search_query:
     else:
         base_results = pd.DataFrame()
 
-    # Format counts for radio filter
+    # Format counts for filter
     unique_releases = base_results[['release_id', 'Format']].drop_duplicates()
     format_counts = {
         'All': len(base_results),
@@ -219,7 +226,7 @@ if search_query:
     )
     format_clean = format_filter.split()[0]
 
-    # Apply filter
+    # Apply format filter
     results = base_results
     if format_clean != 'All':
         pattern = 'album|compilation|comp' if format_clean == 'Album' else format_clean.lower()
@@ -293,6 +300,5 @@ if search_query:
                     st.dataframe(group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
                         'Track Title': 'Song', 'CD': 'Disc', 'Track Number': 'Track'
                     }).reset_index(drop=True), use_container_width=True, hide_index=True)
-
 else:
     st.caption("Please enter a search query above.")
