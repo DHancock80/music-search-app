@@ -158,30 +158,31 @@ def get_autocomplete_suggestions(prefix: str):
 
     fields = ["Track Title", "Artist", "Title"] if search_type == "All" else [field_map[search_type]]
     prefix_norm = normalize(prefix)
+    prefix_words = prefix_norm.split()
 
     seen = {}
     for field in fields:
         column = df[field].dropna().astype(str).unique()
         for val in column:
             val_norm = normalize(val)
+            val_words = val_norm.split()
 
-            # Ignore suggestions that are too short or unhelpful
-            if len(val_norm) <= 1:
-                continue
+            if len(val_norm) < 3:
+                continue  # skip very short suggestions
 
+            # Score exact prefix matches highest
             if val_norm.startswith(prefix_norm):
                 score = 1000
-            elif prefix_norm in val_norm:
+            # Score matches where words align in order (e.g., prefix: "now thats what")
+            elif all(word in val_words for word in prefix_words):
                 score = 950
-            elif any(w.startswith(prefix_norm) for w in val_norm.split()):
-                score = 900
+            # Score fuzzy partial matches lower
             else:
                 score = fuzz.partial_ratio(prefix_norm, val_norm)
 
             if val not in seen or score > seen[val]:
                 seen[val] = score
 
-    # Sort first by score, then alphabetically
     sorted_results = sorted(seen.items(), key=lambda x: (-x[1], x[0]))
     return [val for val, _ in sorted_results[:15]]
 
