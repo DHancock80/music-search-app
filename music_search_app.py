@@ -165,28 +165,36 @@ def get_autocomplete_suggestions(prefix: str):
         search_fields = [search_fields]
 
     normalized_prefix = normalize(prefix)
-    suggestions = {}
+    scored = []
+
+    seen = set()
 
     for field in search_fields:
         for val in df[field].dropna().astype(str).unique():
+            if val in seen:
+                continue
+            seen.add(val)
+
             norm_val = normalize(val)
+            score = 0
 
             if norm_val == normalized_prefix:
                 score = 1000  # exact match
             elif norm_val.startswith(normalized_prefix):
-                score = 900  # starts with
-            elif normalized_prefix in norm_val.split():
-                score = 800  # whole word
+                score = 950  # full prefix match
             elif normalized_prefix in norm_val:
-                score = 700  # substring
+                score = 850  # partial phrase match
+            elif any(normalized_prefix == word for word in norm_val.split()):
+                score = 700  # individual word match
             else:
-                score = fuzz.partial_ratio(norm_val, normalized_prefix)
+                fuzzy_score = fuzz.partial_ratio(norm_val, normalized_prefix)
+                if fuzzy_score >= 60:
+                    score = fuzzy_score
 
-            # Store the highest score for each unique suggestion
-            if val not in suggestions or suggestions[val] < score:
-                suggestions[val] = score
+            if score > 0:
+                scored.append((val, score))
 
-    sorted_suggestions = sorted(suggestions.items(), key=lambda x: -x[1])
+    sorted_suggestions = sorted(scored, key=lambda x: -x[1])
     return [x[0] for x in sorted_suggestions[:20]]
 
 # === UI ===
