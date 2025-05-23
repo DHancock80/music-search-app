@@ -152,17 +152,14 @@ def get_autocomplete_suggestions(prefix: str):
 st.title("Music Search App")
 
 if st.button("🔄 New Search (Clear)"):
-    st.session_state.clear()
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
     st.rerun()
 
 search_type = st.radio("Search by:", ["Song Title", "Artist", "Album"], horizontal=True, key="search_type")
 df = load_data()
 
 # Clear problematic session state if leftover from previous interaction
-if 'search_input' in st.session_state and isinstance(st.session_state['search_input'], dict):
-    del st.session_state['search_input']
-
-# Autocomplete input using streamlit-searchbox
 search_query = st_searchbox(get_autocomplete_suggestions, key="search_input")
 
 if search_query:
