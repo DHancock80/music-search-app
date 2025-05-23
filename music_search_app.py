@@ -172,7 +172,11 @@ search_type = st.radio("Search by:", ["Song Title", "Artist", "Album"], horizont
 df = load_data()
 
 # Clear problematic session state if leftover from previous interaction
-search_query = st_searchbox(get_autocomplete_suggestions, key="search_input")
+try:
+    search_query = st_searchbox(get_autocomplete_suggestions, key="search_input")
+except TypeError:
+    del st.session_state["search_input"]
+    st.rerun()
 
 if search_query:
     st.session_state['search_input'] = search_query
