@@ -180,12 +180,14 @@ except TypeError:
     st.rerun()
 
 # === Streamlit Searchbox with persistent key ===
-try:
-    search_query = st_searchbox(get_autocomplete_suggestions, key="search_autocomplete")
-except TypeError:
-    if "search_autocomplete" in st.session_state:
-        del st.session_state["search_autocomplete"]
-    st.rerun()
+search_query = None
+if "searchbox_loaded" not in st.session_state:
+    try:
+        search_query = st_searchbox(get_autocomplete_suggestions, key="search_autocomplete")
+        st.session_state["searchbox_loaded"] = True
+    except TypeError:
+        st.session_state.pop("search_autocomplete", None)
+        st.rerun()
 
 # Keep search persistent across reruns (e.g., clicking filter)
 if search_query:
