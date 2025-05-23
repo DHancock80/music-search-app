@@ -297,7 +297,7 @@ if search_query:
         st.warning("No results found.")
     else:
              # Simple View Toggle
-simple_view = st.checkbox("📱 Enable Simple View (Mobile-Friendly List)", value=False)
+    simple_view = st.checkbox("📱 Enable Simple View (Mobile-Friendly List)", value=False)
 
 for release_id, group in results.groupby("release_id"):
     first = group.iloc[0]
