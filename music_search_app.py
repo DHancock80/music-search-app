@@ -172,12 +172,15 @@ if st.button("🔄 New Search (Clear)"):
 search_type = st.radio("Search by:", ["Song Title", "Artist", "Album"], horizontal=True, key="search_type")
 df = load_data()
 
-# Use streamlit-searchbox safely, recover on internal crash
+import uuid
+
+unique_key = f"searchbox_{uuid.uuid4()}"
+
 try:
-    search_query = st_searchbox(get_autocomplete_suggestions, key="search_autocomplete")
-except TypeError:
-    del st.session_state["search_input"]
-    st.rerun()
+    search_query = st_searchbox(get_autocomplete_suggestions, key=unique_key)
+    st.session_state['last_query'] = search_query
+except Exception:
+    search_query = st.session_state.get('last_query', "")
 
 # === Streamlit Searchbox with persistent key ===
 search_query = None
