@@ -1,4 +1,4 @@
-# Version 1.4 - Autocomplete + Persistent Search + UI Fixes
+# Version 1.5 - Cleaned duplicate searchbox, fixed filters
 
 import pandas as pd
 import base64
@@ -11,6 +11,7 @@ from datetime import datetime
 import streamlit as st
 from rapidfuzz import fuzz
 from streamlit_searchbox import st_searchbox
+import uuid
 
 # Constants
 DISCOGS_ICON_WHITE = 'https://raw.githubusercontent.com/DHancock80/music-search-app/main/discogs_white.png'
@@ -172,51 +173,26 @@ if st.button("🔄 New Search (Clear)"):
 search_type = st.radio("Search by:", ["Song Title", "Artist", "Album"], horizontal=True, key="search_type")
 df = load_data()
 
-import uuid
-
-unique_key = f"searchbox_{uuid.uuid4()}"
-
+# Single searchbox only
 try:
-    search_query = st_searchbox(get_autocomplete_suggestions, key=unique_key)
-    st.session_state['last_query'] = search_query
-except Exception:
-    search_query = st.session_state.get('last_query', "")
+    search_query = st_searchbox(get_autocomplete_suggestions, key="search_autocomplete")
+    if search_query:
+        st.session_state["last_query"] = search_query
+except TypeError:
+    st.session_state.pop("search_autocomplete", None)
+    st.rerun()
 
-# === Streamlit Searchbox with persistent key ===
-search_query = None
-if "searchbox_loaded" not in st.session_state:
-    try:
-        search_query = st_searchbox(get_autocomplete_suggestions, key="search_autocomplete")
-        st.session_state["searchbox_loaded"] = True
-    except TypeError:
-        st.session_state.pop("search_autocomplete", None)
-        st.rerun()
-
-# Keep search persistent across reruns (e.g., clicking filter)
-if search_query:
-    st.session_state["last_query"] = search_query
-elif "last_query" in st.session_state:
-    search_query = st.session_state["last_query"]
-else:
-    search_query = ""
+search_query = st.session_state.get("last_query", "")
 
 if search_query:
     field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title"}
     field = field_map[search_type]
 
-    if search_type == "Song Title":
-        base_results = df[df['Track Title'].apply(lambda x: fuzzy_match(str(x), search_query))]
-    elif search_type == "Artist":
-        base_results = df[df['Artist'].apply(lambda x: fuzzy_match(str(x), search_query))]
-    elif search_type == "Album":
-        base_results = df[df['Title'].apply(lambda x: fuzzy_match(str(x), search_query))]
-    else:
-        base_results = pd.DataFrame()
+    results = df[df[field].apply(lambda x: fuzzy_match(str(x), search_query))]
 
-    # Format filter radio
-    unique_releases = base_results[['release_id', 'Format']].drop_duplicates()
+    unique_releases = results[['release_id', 'Format']].drop_duplicates()
     format_counts = {
-        'All': len(base_results),
+        'All': len(results),
         'Album': unique_releases['Format'].str.contains("album|compilation|comp", case=False, na=False).sum(),
         'Single': unique_releases['Format'].str.contains("single", case=False, na=False).sum(),
         'Video': unique_releases['Format'].str.contains("video", case=False, na=False).sum()
@@ -229,7 +205,6 @@ if search_query:
     )
     format_clean = format_filter.split()[0]
 
-    results = base_results
     if format_clean != "All":
         pattern = 'album|compilation|comp' if format_clean == "Album" else format_clean.lower()
         results = results[results["Format"].fillna("").str.lower().str.contains(pattern, na=False)]
@@ -263,8 +238,8 @@ if search_query:
             cols = st.columns([1, 5])
             with cols[0]:
                 st.markdown(f"""
-                    <a href="{cover_url}" target="_blank">
-                        <img src="{cover_url}" width="120" style="border-radius:8px;" />
+                    <a href=\"{cover_url}\" target=\"_blank\">
+                        <img src=\"{cover_url}\" width=\"120\" style=\"border-radius:8px;\" />
                     </a>
                 """, unsafe_allow_html=True)
 
@@ -272,10 +247,10 @@ if search_query:
                 theme = st.get_option("theme.base")
                 icon_url = DISCOGS_ICON_BLACK if theme == "light" else DISCOGS_ICON_WHITE
                 st.markdown(f"""
-                    <div style="display:flex;justify-content:space-between;align-items:center;">
-                        <div style="font-size:20px;font-weight:600;">{title}</div>
-                        <a href="https://www.discogs.com/release/{release_id}" target="_blank">
-                            <img src="{icon_url}" width="24" style="margin-left:10px;" />
+                    <div style=\"display:flex;justify-content:space-between;align-items:center;\">
+                        <div style=\"font-size:20px;font-weight:600;\">{title}</div>
+                        <a href=\"https://www.discogs.com/release/{release_id}\" target=\"_blank\">
+                            <img src=\"{icon_url}\" width=\"24\" style=\"margin-left:10px;\" />
                         </a>
                     </div>
                     <div><strong>Artist:</strong> {artist}</div>
