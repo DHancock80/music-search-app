@@ -202,31 +202,29 @@ elif search_type == "Album":
 else:
     base_results = pd.DataFrame()
 
-# Store to session state so it's preserved across reruns (e.g., when filter changes)
-st.session_state['base_results'] = base_results
+# Calculate format counts from full results
+unique_releases = base_results[['release_id', 'Format']].drop_duplicates()
+format_counts = {
+    'All': len(base_results),
+    'Album': unique_releases['Format'].str.contains("album|compilation|comp", case=False, na=False).sum(),
+    'Single': unique_releases['Format'].str.contains("single", case=False, na=False).sum(),
+    'Video': unique_releases['Format'].str.contains("video", case=False, na=False).sum()
+}
 
-# Start with full result set and apply format filter if needed
+# Show filter and apply selected one
+format_filter = st.radio(
+    'Format:',
+    [f"All ({format_counts['All']})", f"Album ({format_counts['Album']})", f"Single ({format_counts['Single']})", f"Video ({format_counts['Video']})"],
+    horizontal=True
+)
+format_clean = format_filter.split()[0]
+
+# Apply filter
 results = base_results
 if format_clean != 'All':
     pattern = 'album|compilation|comp' if format_clean == 'Album' else format_clean.lower()
     results = results[results['Format'].fillna('').str.lower().str.contains(pattern, na=False)]
 
-    unique_releases = results[['release_id', 'Format']].drop_duplicates()
-    format_counts = {
-        'All': len(results),
-        'Album': unique_releases['Format'].str.contains("album|compilation|comp", case=False, na=False).sum(),
-        'Single': unique_releases['Format'].str.contains("single", case=False, na=False).sum(),
-        'Video': unique_releases['Format'].str.contains("video", case=False, na=False).sum()
-    }
-
-    format_filter = st.radio('Format:', [f"All ({format_counts['All']})", f"Album ({format_counts['Album']})", f"Single ({format_counts['Single']})", f"Video ({format_counts['Video']})"], horizontal=True)
-    format_clean = format_filter.split()[0]
-
-if 'base_results' in st.session_state:
-    results = st.session_state['base_results']
-    if format_clean != 'All':
-        pattern = 'album|compilation|comp' if format_clean == 'Album' else format_clean.lower()
-        results = results[results['Format'].fillna('').str.lower().str.contains(pattern, na=False)]
 
     if results.empty:
         st.warning("No results found.")
