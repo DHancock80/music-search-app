@@ -153,38 +153,32 @@ def load_data():
 
 def get_autocomplete_suggestions(prefix: str):
     df = load_data()
-    field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title", "All": None}
-    search_type = st.session_state.get("search_type", "All")
-    normalized_prefix = normalize(prefix)
+    field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title"}
+    search_type = st.session_state.get('search_type', 'All')
+    fields = ["Track Title", "Artist", "Title"] if search_type == "All" else [field_map[search_type]]
 
-    columns_to_check = []
-    if search_type == "All":
-        columns_to_check = ["Track Title", "Artist", "Title"]
-    else:
-        columns_to_check = [field_map[search_type]]
+    prefix_norm = normalize(prefix)
+    suggestions = {}
 
-    suggestions = []
-    seen = set()
+    for field in fields:
+        for val in df[field].dropna().astype(str).unique():
+            val_norm = normalize(val)
 
-    for col in columns_to_check:
-        if col not in df.columns:
-            continue
-        for val in df[col].dropna().astype(str).unique():
-            norm_val = normalize(val)
-            if norm_val in seen:
-                continue
-            seen.add(norm_val)
-            if norm_val == normalized_prefix:
-                score = 1000
-            elif norm_val.startswith(normalized_prefix):
-                score = 900
-            elif normalized_prefix in norm_val:
-                score = 800
+            # Prioritization scores
+            if val_norm == prefix_norm:
+                score = 1000  # exact match
+            elif val_norm.startswith(prefix_norm):
+                score = 900  # starts with prefix
+            elif prefix_norm in val_norm:
+                score = 800  # contains prefix
             else:
-                score = fuzz.partial_ratio(normalized_prefix, norm_val)
-            suggestions.append((val, score))
+                score = fuzz.partial_ratio(prefix_norm, val_norm)
 
-    return [x[0] for x in sorted(suggestions, key=lambda x: -x[1])[:15]]
+            if val not in suggestions or score > suggestions[val]:
+                suggestions[val] = score
+
+    sorted_matches = sorted(suggestions.items(), key=lambda x: -x[1])
+    return [val for val, _ in sorted_matches[:10]]
 
 # === UI ===
 st.title("Music Search App")
