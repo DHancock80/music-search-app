@@ -1,4 +1,4 @@
-# Version 1.6 - Revert to original cover art fetches Discogs image
+# Version 1.7 - Fix autocomplete logic, restore image click, default to all search
 
 import pandas as pd
 import base64
@@ -34,9 +34,8 @@ GITHUB_BRANCH = 'main'
 if 'open_expander_id' not in st.session_state:
     st.session_state['open_expander_id'] = None
 if 'search_type' not in st.session_state:
-    st.session_state['search_type'] = "Song Title"
+    st.session_state['search_type'] = "All"
 
-# === Helpers ===
 def normalize(text):
     if pd.isna(text): return ''
     text = str(text).lower()
@@ -156,26 +155,21 @@ def load_data():
 
 def get_autocomplete_suggestions(prefix: str):
     df = load_data()
-    field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title"}
-    field = field_map[st.session_state['search_type']]
-    column = df[field].dropna().astype(str).unique()
+    all_fields = ["Track Title", "Artist", "Title"]
+    all_text = pd.Series(dtype=str)
+
+    for field in all_fields:
+        all_text = pd.concat([all_text, df[field].dropna().astype(str)])
+
+    all_text = all_text.unique()
     normalized_prefix = normalize(prefix)
 
     suggestions = []
-    for val in column:
+    for val in all_text:
         norm_val = normalize(val)
-        words = norm_val.split()
-
-        if norm_val == normalized_prefix:
-            score = 1000
-        elif words and words[0] == normalized_prefix:
-            score = 950
-        elif norm_val.startswith(normalized_prefix):
-            score = 900
-        else:
-            score = fuzz.partial_ratio(norm_val, normalized_prefix)
-
-        suggestions.append((val, score))
+        if normalized_prefix in norm_val:
+            score = fuzz.partial_ratio(normalized_prefix, norm_val)
+            suggestions.append((val, score))
 
     sorted_matches = sorted(suggestions, key=lambda x: -x[1])
     return [x[0] for x in sorted_matches[:10]]
@@ -188,7 +182,7 @@ if st.button("🔄 New Search (Clear)"):
         del st.session_state[key]
     st.rerun()
 
-search_type = st.radio("Search by:", ["Song Title", "Artist", "Album"], horizontal=True, key="search_type")
+search_type = st.radio("Search by:", ["All", "Song Title", "Artist", "Album"], horizontal=True, key="search_type")
 df = load_data()
 
 try:
@@ -202,9 +196,23 @@ except TypeError:
 search_query = st.session_state.get("last_query", "")
 
 if search_query:
-    field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title"}
-    field = field_map[search_type]
-    results = df[df[field].apply(lambda x: fuzzy_match(str(x), search_query))]
+    field_map = {
+        "Song Title": "Track Title",
+        "Artist": "Artist",
+        "Album": "Title",
+        "All": None
+    }
+    field = field_map.get(search_type)
+
+    if field:
+        results = df[df[field].apply(lambda x: fuzzy_match(str(x), search_query))]
+    else:
+        results = df[df.apply(lambda row:
+            fuzzy_match(str(row['Track Title']), search_query) or
+            fuzzy_match(str(row['Artist']), search_query) or
+            fuzzy_match(str(row['Title']), search_query),
+            axis=1
+        )]
 
     unique_releases = results[['release_id', 'Format']].drop_duplicates()
     format_counts = {
