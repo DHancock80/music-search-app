@@ -33,11 +33,8 @@ if 'search_input' not in st.session_state:
     st.session_state['search_input'] = ""
 if 'search_type' not in st.session_state:
     st.session_state['search_type'] = "Song Title"
-if 'show_suggestions' not in st.session_state:
-    st.session_state['show_suggestions'] = False
-if 'suggestions' not in st.session_state:
-    st.session_state['suggestions'] = []
 
+# === Helpers ===
 def normalize(text):
     if pd.isna(text): return ''
     text = str(text).lower()
@@ -177,19 +174,12 @@ df = load_data()
 field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title"}
 field = field_map[st.session_state['search_type']]
 
-search_input = st.text_input("Enter your search:", value=st.session_state['search_input'])
+suggestions = get_suggestions(df, field, st.session_state['search_input']) if st.session_state['search_input'] else []
+search_input = st.selectbox("Enter your search:", options=suggestions if suggestions else [st.session_state['search_input']], key="search_input_select", index=0)
+
 if search_input != st.session_state['search_input']:
     st.session_state['search_input'] = search_input
-    st.session_state['suggestions'] = get_suggestions(df, field, search_input)
-    st.session_state['show_suggestions'] = True
     st.experimental_rerun()
-
-if st.session_state.get('show_suggestions') and st.session_state['suggestions']:
-    for suggestion in st.session_state['suggestions']:
-        if st.button(suggestion, key=f"suggestion_{suggestion}"):
-            st.session_state['search_input'] = suggestion
-            st.session_state['show_suggestions'] = False
-            st.rerun()
 
 search_query = st.session_state['search_input']
 if search_query:
