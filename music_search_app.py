@@ -168,15 +168,18 @@ def get_autocomplete_suggestions(prefix: str):
             val_words = val_norm.split()
 
             if len(val_norm) < 3:
-                continue  # skip very short suggestions
+                continue  # Skip very short junk values
 
-            # Score exact prefix matches highest
-            if val_norm.startswith(prefix_norm):
+            # Highest score for full exact normalized match
+            if val_norm == prefix_norm:
+                score = 1100
+            # Prefix words match in correct order
+            elif val_words[:len(prefix_words)] == prefix_words:
                 score = 1000
-            # Score matches where words align in order (e.g., prefix: "now thats what")
-            elif all(word in val_words for word in prefix_words):
+            # Starts with at least first 2 prefix words
+            elif len(prefix_words) >= 2 and val_norm.startswith(" ".join(prefix_words[:2])):
                 score = 950
-            # Score fuzzy partial matches lower
+            # Fuzzy fallback
             else:
                 score = fuzz.partial_ratio(prefix_norm, val_norm)
 
