@@ -156,7 +156,6 @@ def get_autocomplete_suggestions(prefix: str):
     field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title"}
     search_type = st.session_state.get("search_type", "All")
 
-    # Decide which columns to check
     fields = ["Track Title", "Artist", "Title"] if search_type == "All" else [field_map[search_type]]
     prefix_norm = normalize(prefix)
 
@@ -166,21 +165,23 @@ def get_autocomplete_suggestions(prefix: str):
         for val in column:
             val_norm = normalize(val)
 
-            if val_norm == prefix_norm:
+            # Ignore suggestions that are too short or unhelpful
+            if len(val_norm) <= 1:
+                continue
+
+            if val_norm.startswith(prefix_norm):
                 score = 1000
-            elif val_norm.startswith(prefix_norm):
-                score = 950
             elif prefix_norm in val_norm:
-                score = 900
+                score = 950
             elif any(w.startswith(prefix_norm) for w in val_norm.split()):
-                score = 850
+                score = 900
             else:
                 score = fuzz.partial_ratio(prefix_norm, val_norm)
 
-            # Keep the highest score for each unique value
             if val not in seen or score > seen[val]:
                 seen[val] = score
 
+    # Sort first by score, then alphabetically
     sorted_results = sorted(seen.items(), key=lambda x: (-x[1], x[0]))
     return [val for val, _ in sorted_results[:15]]
 
