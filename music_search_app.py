@@ -179,27 +179,26 @@ except TypeError:
     del st.session_state["search_input"]
     st.rerun()
 
-# === Search box with persistence ===
+# === Streamlit Searchbox with persistent key ===
 try:
-    search_query = st_searchbox(get_autocomplete_suggestions, key="search_input")
+    search_query = st_searchbox(get_autocomplete_suggestions, key="search_autocomplete")
 except TypeError:
-    del st.session_state["search_input"]
+    if "search_autocomplete" in st.session_state:
+        del st.session_state["search_autocomplete"]
     st.rerun()
 
-# Persist search across reruns (due to filter changes)
+# Keep search persistent across reruns (e.g., clicking filter)
 if search_query:
-    st.session_state['last_query'] = search_query
-elif 'last_query' in st.session_state:
-    search_query = st.session_state['last_query']
+    st.session_state["last_query"] = search_query
+elif "last_query" in st.session_state:
+    search_query = st.session_state["last_query"]
 else:
     search_query = ""
 
 if search_query:
-    st.session_state['search_autocomplete'] = search_query
     field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title"}
     field = field_map[search_type]
 
-    # Run fuzzy search based on search type
     if search_type == "Song Title":
         base_results = df[df['Track Title'].apply(lambda x: fuzzy_match(str(x), search_query))]
     elif search_type == "Artist":
@@ -209,7 +208,7 @@ if search_query:
     else:
         base_results = pd.DataFrame()
 
-    # Format counts for filter
+    # Format filter radio
     unique_releases = base_results[['release_id', 'Format']].drop_duplicates()
     format_counts = {
         'All': len(base_results),
@@ -218,7 +217,6 @@ if search_query:
         'Video': unique_releases['Format'].str.contains("video", case=False, na=False).sum()
     }
 
-    # Format filter radio
     format_filter = st.radio(
         'Format:',
         [f"All ({format_counts['All']})", f"Album ({format_counts['Album']})", f"Single ({format_counts['Single']})", f"Video ({format_counts['Video']})"],
@@ -226,13 +224,11 @@ if search_query:
     )
     format_clean = format_filter.split()[0]
 
-    # Apply format filter
     results = base_results
-    if format_clean != 'All':
-        pattern = 'album|compilation|comp' if format_clean == 'Album' else format_clean.lower()
-        results = results[results['Format'].fillna('').str.lower().str.contains(pattern, na=False)]
+    if format_clean != "All":
+        pattern = 'album|compilation|comp' if format_clean == "Album" else format_clean.lower()
+        results = results[results["Format"].fillna("").str.lower().str.contains(pattern, na=False)]
 
-    # === Show results ===
     if results.empty:
         st.warning("No results found.")
     else:
@@ -253,11 +249,11 @@ if search_query:
         </style>
         """, unsafe_allow_html=True)
 
-        for release_id, group in results.groupby('release_id'):
+        for release_id, group in results.groupby("release_id"):
             first = group.iloc[0]
-            cover_url = first.get('cover_art_final') or PLACEHOLDER_COVER
-            artist = "Various Artists" if group['Artist'].nunique() > 1 else group['Artist'].iloc[0]
-            title = first['Title']
+            cover_url = first.get("cover_art_final") or PLACEHOLDER_COVER
+            artist = "Various Artists" if group["Artist"].nunique() > 1 else group["Artist"].iloc[0]
+            title = first["Title"]
 
             cols = st.columns([1, 5])
             with cols[0]:
@@ -281,9 +277,9 @@ if search_query:
                 """, unsafe_allow_html=True)
 
             if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
-                st.session_state['open_expander_id'] = release_id if st.session_state['open_expander_id'] != release_id else None
+                st.session_state["open_expander_id"] = release_id if st.session_state["open_expander_id"] != release_id else None
 
-            is_expanded = st.session_state.get('open_expander_id') == release_id
+            is_expanded = st.session_state.get("open_expander_id") == release_id
             if is_expanded:
                 with st.expander("Update Cover Art", expanded=True):
                     with st.form(f"form_{release_id}"):
