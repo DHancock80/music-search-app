@@ -153,51 +153,40 @@ def load_data():
 
 def get_autocomplete_suggestions(prefix: str):
     df = load_data()
-    field_map = {
-        "Song Title": "Track Title",
-        "Artist": "Artist",
-        "Album": "Title",
-        "All": None
-    }
-
-    prefix_norm = normalize(prefix)
-    prefix_words = prefix_norm.split()
+    field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title"}
+    field = field_map.get(st.session_state.get('search_type', 'All'))
 
     if st.session_state["search_type"] == "All":
-        fields = ["Track Title", "Artist", "Title"]
+        candidates = pd.concat([
+            df['Track Title'].dropna().astype(str),
+            df['Artist'].dropna().astype(str),
+            df['Title'].dropna().astype(str)
+        ]).unique()
     else:
-        fields = [field_map[st.session_state["search_type"]]]
+        candidates = df[field].dropna().astype(str).unique()
 
-    suggestions = {}
-    for field in fields:
-        column = df[field].dropna().astype(str).unique()
-        for val in column:
-            norm_val = normalize(val)
-            norm_words = norm_val.split()
+    norm_prefix = normalize(prefix)
+    suggestions = []
 
-            # Scoring logic
-            if norm_val == prefix_norm:
-                score = 1000  # exact match
-            elif norm_val.startswith(prefix_norm):
-                score = 950  # full phrase prefix
-            elif prefix_norm in norm_val:
-                score = 925  # contains
-            elif norm_words[:len(prefix_words)] == prefix_words:
-                score = 900  # phrase order match
-            elif any(word.startswith(prefix_words[0]) for word in norm_words):
-                score = 850  # first word match
-            else:
-                score = fuzz.partial_ratio(norm_val, prefix_norm)
+    for val in candidates:
+        norm_val = normalize(val)
 
-            # Penalize short irrelevant results
-            if len(norm_val.split()) == 1 and len(prefix_words) > 2:
-                score -= 100
+        # Prioritize exact matches or startswith
+        if norm_val == norm_prefix:
+            score = 1000
+        elif norm_val.startswith(norm_prefix):
+            score = 950
+        elif norm_prefix in norm_val:
+            score = 900
+        elif all(word in norm_val for word in norm_prefix.split()):
+            score = 850
+        else:
+            score = fuzz.partial_ratio(norm_val, norm_prefix)
 
-            if val not in suggestions or score > suggestions[val]:
-                suggestions[val] = score
+        suggestions.append((val, score))
 
-    sorted_results = sorted(suggestions.items(), key=lambda x: -x[1])
-    return [x[0] for x in sorted_results[:10]]
+    sorted_matches = sorted(suggestions, key=lambda x: -x[1])
+    return [s[0] for s in sorted_matches[:10]]
 
 # === UI ===
 st.title("Music Search App")
