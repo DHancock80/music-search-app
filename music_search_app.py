@@ -176,17 +176,23 @@ def get_autocomplete_suggestions(prefix: str):
 
             # Scoring logic
             if norm_val == normalized_prefix:
-                score = 1000  # exact full match
+                score = 1000
             elif norm_val.startswith(normalized_prefix):
-                score = 900  # starts with prefix
+                score = 950
             elif words and words[0] == normalized_prefix:
-                score = 850  # matches first word exactly
+                score = 925
             elif normalized_prefix in words:
-                score = 800  # contains as whole word
+                score = 900
             else:
                 score = fuzz.partial_ratio(norm_val, normalized_prefix)
 
-            # Keep highest score only
+            # Penalize very short entries
+            if len(norm_val) < 4:
+                score -= 200
+
+            # Boost longer more descriptive titles
+            score += min(len(norm_val), 50)
+
             if val not in suggestions or score > suggestions[val]:
                 suggestions[val] = score
 
