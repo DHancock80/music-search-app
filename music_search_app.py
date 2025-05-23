@@ -204,7 +204,7 @@ else:
 # Store base search results to persist through reruns
 st.session_state['base_results'] = results
 
-    unique_releases = results[['release_id', 'Format']].drop_duplicates()
+unique_releases = results[['release_id', 'Format']].drop_duplicates()
     format_counts = {
         'All': len(results),
         'Album': unique_releases['Format'].str.contains("album|compilation|comp", case=False, na=False).sum(),
