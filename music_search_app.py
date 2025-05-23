@@ -32,8 +32,7 @@ GITHUB_BRANCH = 'main'
 
 if 'open_expander_id' not in st.session_state:
     st.session_state['open_expander_id'] = None
-if 'search_input' not in st.session_state:
-    st.session_state['search_input'] = ""
+
 if 'search_type' not in st.session_state:
     st.session_state['search_type'] = "Song Title"
 
