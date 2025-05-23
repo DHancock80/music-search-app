@@ -293,62 +293,80 @@ if search_query:
         pattern = 'album|compilation|comp' if format_clean == "Album" else format_clean.lower()
         results = results[results["Format"].fillna("").str.lower().str.contains(pattern, na=False)]
 
-    if results.empty:
-        st.warning("No results found.")
-    else:
-             # Simple View Toggle
+   if results.empty:
+    st.warning("No results found.")
+else:
+    # Optional style tweaks
+    st.markdown("""
+    <style>
+    div[data-testid="stButton"] > button {
+        background: none;
+        border: none;
+        padding: 0;
+        font-size: 14px;
+        text-decoration: underline;
+        color: var(--text-color);
+        cursor: pointer;
+    }
+    div[data-testid="stButton"] > button:hover {
+        color: var(--primary-color);
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # 📱 Simple View Toggle
     simple_view = st.checkbox("📱 Enable Simple View (Mobile-Friendly List)", value=False)
 
-for release_id, group in results.groupby("release_id"):
-    first = group.iloc[0]
-    cover_url = first.get("cover_art_final") or PLACEHOLDER_COVER
-    artist = "Various Artists" if group["Artist"].nunique() > 1 else group["Artist"].iloc[0]
-    title = first["Title"]
-    theme = st.get_option("theme.base")
-    icon_url = DISCOGS_ICON_BLACK if theme == "light" else DISCOGS_ICON_WHITE
+    for release_id, group in results.groupby("release_id"):
+        first = group.iloc[0]
+        cover_url = first.get("cover_art_final") or PLACEHOLDER_COVER
+        artist = "Various Artists" if group["Artist"].nunique() > 1 else group["Artist"].iloc[0]
+        title = first["Title"]
+        theme = st.get_option("theme.base")
+        icon_url = DISCOGS_ICON_BLACK if theme == "light" else DISCOGS_ICON_WHITE
 
-    if simple_view:
-        st.image(cover_url, width=100)
-        st.markdown(f"**{title}**  \n*Artist: {artist}*")
-    else:
-        cols = st.columns([1, 5])
-        with cols[0]:
-            st.markdown(f"""
-                <a href="{cover_url}" target="_blank">
-                    <img src="{cover_url}" width="120" style="border-radius:8px;" />
-                </a>
-            """, unsafe_allow_html=True)
-        with cols[1]:
-            st.markdown(f"""
-                <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <div style="font-size:20px;font-weight:600;">{title}</div>
-                    <a href="https://www.discogs.com/release/{release_id}" target="_blank">
-                        <img src="{icon_url}" width="24" style="margin-left:10px;" />
+        if simple_view:
+            st.image(cover_url, width=100)
+            st.markdown(f"**{title}**  \n*Artist: {artist}*")
+        else:
+            cols = st.columns([1, 5])
+            with cols[0]:
+                st.markdown(f"""
+                    <a href="{cover_url}" target="_blank">
+                        <img src="{cover_url}" width="120" style="border-radius:8px;" />
                     </a>
-                </div>
-                <div><strong>Artist:</strong> {artist}</div>
-            """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
+            with cols[1]:
+                st.markdown(f"""
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <div style="font-size:20px;font-weight:600;">{title}</div>
+                        <a href="https://www.discogs.com/release/{release_id}" target="_blank">
+                            <img src="{icon_url}" width="24" style="margin-left:10px;" />
+                        </a>
+                    </div>
+                    <div><strong>Artist:</strong> {artist}</div>
+                """, unsafe_allow_html=True)
 
-    if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
-        st.session_state["open_expander_id"] = release_id if st.session_state["open_expander_id"] != release_id else None
+        if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
+            st.session_state["open_expander_id"] = release_id if st.session_state["open_expander_id"] != release_id else None
 
-    is_expanded = st.session_state.get("open_expander_id") == release_id
-    if is_expanded:
-        with st.expander("Update Cover Art", expanded=True):
-            with st.form(f"form_{release_id}"):
-                new_url = st.text_input("Custom cover art URL:", key=f"url_{release_id}")
-                cols = st.columns(2)
-                with cols[0]:
-                    if st.form_submit_button("Upload custom URL"):
-                        update_cover_override(release_id, new_url)
-                with cols[1]:
-                    if st.form_submit_button("Revert to original Cover Art"):
-                        reset_cover_override(release_id)
-    else:
-        with st.expander("Click to view tracklist"):
-            st.dataframe(group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
-                'Track Title': 'Song', 'CD': 'Disc', 'Track Number': 'Track'
-            }).reset_index(drop=True), use_container_width=True, hide_index=True)
+        is_expanded = st.session_state.get("open_expander_id") == release_id
+        if is_expanded:
+            with st.expander("Update Cover Art", expanded=True):
+                with st.form(f"form_{release_id}"):
+                    new_url = st.text_input("Custom cover art URL:", key=f"url_{release_id}")
+                    cols = st.columns(2)
+                    with cols[0]:
+                        if st.form_submit_button("Upload custom URL"):
+                            update_cover_override(release_id, new_url)
+                    with cols[1]:
+                        if st.form_submit_button("Revert to original Cover Art"):
+                            reset_cover_override(release_id)
+        else:
+            with st.expander("Click to view tracklist"):
+                st.dataframe(group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
+                    'Track Title': 'Song', 'CD': 'Disc', 'Track Number': 'Track'
+                }).reset_index(drop=True), use_container_width=True, hide_index=True)
 
 else:
     st.caption("Please enter a search query above.")
