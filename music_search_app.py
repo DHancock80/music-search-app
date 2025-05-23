@@ -143,21 +143,18 @@ def get_autocomplete_suggestions(prefix: str):
     column = df[field].dropna().astype(str).unique()
     normalized_prefix = normalize(prefix)
 
-    scored_matches = [
-        (val, fuzz.partial_ratio(normalize(val), normalized_prefix))
-        for val in column
-    ]
-    # Filter based on fuzzy match threshold
-    scored_matches = [x for x in scored_matches if x[1] >= 75]
+    suggestions = []
+    for val in column:
+        norm_val = normalize(val)
+        if norm_val == normalized_prefix:
+            score = 1000  # exact match
+        elif norm_val.startswith(normalized_prefix):
+            score = 900  # strong prefix match
+        else:
+            score = fuzz.partial_ratio(norm_val, normalized_prefix)
+        suggestions.append((val, score))
 
-    # Prioritize matches that start with the prefix
-    starts_with = [x for x in scored_matches if normalize(x[0]).startswith(normalized_prefix)]
-    contains_later = sorted(
-        [x for x in scored_matches if not normalize(x[0]).startswith(normalized_prefix)],
-        key=lambda x: normalize(x[0])
-    )
-
-    sorted_matches = starts_with + contains_later
+    sorted_matches = sorted(suggestions, key=lambda x: -x[1])
     return [x[0] for x in sorted_matches[:10]]
 
 # === UI ===
