@@ -154,31 +154,35 @@ def load_data():
 def get_autocomplete_suggestions(prefix: str):
     df = load_data()
     field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title"}
-    search_type = st.session_state.get('search_type', 'All')
+    search_type = st.session_state.get("search_type", "All")
+
+    # Decide which columns to check
     fields = ["Track Title", "Artist", "Title"] if search_type == "All" else [field_map[search_type]]
-
     prefix_norm = normalize(prefix)
-    suggestions = {}
 
+    seen = {}
     for field in fields:
-        for val in df[field].dropna().astype(str).unique():
+        column = df[field].dropna().astype(str).unique()
+        for val in column:
             val_norm = normalize(val)
 
-            # Prioritization scores
             if val_norm == prefix_norm:
-                score = 1000  # exact match
+                score = 1000
             elif val_norm.startswith(prefix_norm):
-                score = 900  # starts with prefix
+                score = 950
             elif prefix_norm in val_norm:
-                score = 800  # contains prefix
+                score = 900
+            elif any(w.startswith(prefix_norm) for w in val_norm.split()):
+                score = 850
             else:
                 score = fuzz.partial_ratio(prefix_norm, val_norm)
 
-            if val not in suggestions or score > suggestions[val]:
-                suggestions[val] = score
+            # Keep the highest score for each unique value
+            if val not in seen or score > seen[val]:
+                seen[val] = score
 
-    sorted_matches = sorted(suggestions.items(), key=lambda x: -x[1])
-    return [val for val, _ in sorted_matches[:10]]
+    sorted_results = sorted(seen.items(), key=lambda x: (-x[1], x[0]))
+    return [val for val, _ in sorted_results[:15]]
 
 # === UI ===
 st.title("Music Search App")
