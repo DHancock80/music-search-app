@@ -174,7 +174,7 @@ df = load_data()
 
 # Use streamlit-searchbox safely, recover on internal crash
 try:
-    search_query = st_searchbox(get_autocomplete_suggestions, key="search_input")
+    search_query = st_searchbox(get_autocomplete_suggestions, key="search_autocomplete")
 except TypeError:
     del st.session_state["search_input"]
     st.rerun()
