@@ -272,17 +272,14 @@ if search_query:
         div[data-testid="stButton"] > button:hover {
             color: var(--primary-color);
         }
-
         .stDataFrame > div {
             font-size: 11px !important;
         }
-
         .stDataFrame table td {
             white-space: normal !important;
             word-break: break-word !important;
             padding: 2px 4px !important;
         }
-
         .stDataFrame table th {
             font-size: 11px !important;
             padding: 2px 4px !important;
@@ -297,7 +294,7 @@ if search_query:
             title = first["Title"]
 
             if simple_view:
-                st.markdown(f"""<div style='margin-bottom:0.5rem;font-size:18px;font-weight:bold;'>{title}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='margin-bottom:0.5rem;font-size:18px;font-weight:bold;'>{title}</div>", unsafe_allow_html=True)
                 st.markdown(f"<div style='margin-bottom:0.5rem;font-size:14px;'>– {artist}</div>", unsafe_allow_html=True)
             else:
                 cols = st.columns([1.2, 5])
