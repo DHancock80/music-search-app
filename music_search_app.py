@@ -1,4 +1,6 @@
-# Version 1.7 - Fix autocomplete logic, restore image click, default to all search
+
+
+# Version 1.8 - Improved suggestion ranking and fallback reliability
 
 import pandas as pd
 import base64
@@ -36,12 +38,12 @@ if 'open_expander_id' not in st.session_state:
 if 'search_type' not in st.session_state:
     st.session_state['search_type'] = "All"
 
+# === Helpers ===
 def normalize(text):
     if pd.isna(text): return ''
     text = str(text).lower()
     text = ''.join(c for c in unicodedata.normalize('NFKD', text) if not unicodedata.combining(c))
-    text = re.sub(r'[^a-z0-9]+', ' ', text)
-    return text.strip()
+    return re.sub(r'[^a-z0-9]+', ' ', text).strip()
 
 def fuzzy_match(text, query, threshold=85):
     return fuzz.partial_ratio(normalize(text), normalize(query)) >= threshold
@@ -155,20 +157,38 @@ def load_data():
 
 def get_autocomplete_suggestions(prefix: str):
     df = load_data()
-    all_fields = ["Track Title", "Artist", "Title"]
-    all_text = pd.Series(dtype=str)
-
-    for field in all_fields:
-        all_text = pd.concat([all_text, df[field].dropna().astype(str)])
-
-    all_text = all_text.unique()
+    field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title", "All": None}
+    field = field_map[st.session_state['search_type']]
     normalized_prefix = normalize(prefix)
-
     suggestions = []
-    for val in all_text:
-        norm_val = normalize(val)
-        if normalized_prefix in norm_val:
-            score = fuzz.partial_ratio(normalized_prefix, norm_val)
+
+    if field:
+        values = df[field].dropna().astype(str).unique()
+        for val in values:
+            norm_val = normalize(val)
+            score = 0
+            if norm_val == normalized_prefix:
+                score = 1000
+            elif norm_val.startswith(normalized_prefix):
+                score = 900
+            elif normalized_prefix in norm_val:
+                score = 800
+            else:
+                score = fuzz.partial_ratio(normalized_prefix, norm_val)
+            suggestions.append((val, score))
+    else:
+        combined = pd.concat([df['Track Title'], df['Artist'], df['Title']]).dropna().astype(str).unique()
+        for val in combined:
+            norm_val = normalize(val)
+            score = 0
+            if norm_val == normalized_prefix:
+                score = 1000
+            elif norm_val.startswith(normalized_prefix):
+                score = 900
+            elif normalized_prefix in norm_val:
+                score = 800
+            else:
+                score = fuzz.partial_ratio(normalized_prefix, norm_val)
             suggestions.append((val, score))
 
     sorted_matches = sorted(suggestions, key=lambda x: -x[1])
@@ -177,7 +197,7 @@ def get_autocomplete_suggestions(prefix: str):
 # === UI ===
 st.title("Music Search App")
 
-if st.button("🔄 New Search (Clear)"):
+if st.button("\ud83d\udd04 New Search (Clear)"):
     for key in list(st.session_state.keys()):
         del st.session_state[key]
     st.rerun()
@@ -196,23 +216,15 @@ except TypeError:
 search_query = st.session_state.get("last_query", "")
 
 if search_query:
-    field_map = {
-        "Song Title": "Track Title",
-        "Artist": "Artist",
-        "Album": "Title",
-        "All": None
-    }
-    field = field_map.get(search_type)
-
+    field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title", "All": None}
+    field = field_map[search_type]
     if field:
         results = df[df[field].apply(lambda x: fuzzy_match(str(x), search_query))]
     else:
-        results = df[df.apply(lambda row:
-            fuzzy_match(str(row['Track Title']), search_query) or
-            fuzzy_match(str(row['Artist']), search_query) or
-            fuzzy_match(str(row['Title']), search_query),
-            axis=1
-        )]
+        mask = df['Track Title'].apply(lambda x: fuzzy_match(str(x), search_query)) |\
+               df['Artist'].apply(lambda x: fuzzy_match(str(x), search_query)) |\
+               df['Title'].apply(lambda x: fuzzy_match(str(x), search_query))
+        results = df[mask]
 
     unique_releases = results[['release_id', 'Format']].drop_duplicates()
     format_counts = {
@@ -262,8 +274,8 @@ if search_query:
             cols = st.columns([1, 5])
             with cols[0]:
                 st.markdown(f"""
-                    <a href="{cover_url}" target="_blank">
-                        <img src="{cover_url}" width="120" style="border-radius:8px;" />
+                    <a href=\"{cover_url}\" target=\"_blank\">
+                        <img src=\"{cover_url}\" width=\"120\" style=\"border-radius:8px;\" />
                     </a>
                 """, unsafe_allow_html=True)
 
@@ -271,10 +283,10 @@ if search_query:
                 theme = st.get_option("theme.base")
                 icon_url = DISCOGS_ICON_BLACK if theme == "light" else DISCOGS_ICON_WHITE
                 st.markdown(f"""
-                    <div style="display:flex;justify-content:space-between;align-items:center;">
-                        <div style="font-size:20px;font-weight:600;">{title}</div>
-                        <a href="https://www.discogs.com/release/{release_id}" target="_blank">
-                            <img src="{icon_url}" width="24" style="margin-left:10px;" />
+                    <div style=\"display:flex;justify-content:space-between;align-items:center;\">
+                        <div style=\"font-size:20px;font-weight:600;\">{title}</div>
+                        <a href=\"https://www.discogs.com/release/{release_id}\" target=\"_blank\">
+                            <img src=\"{icon_url}\" width=\"24\" style=\"margin-left:10px;\" />
                         </a>
                     </div>
                     <div><strong>Artist:</strong> {artist}</div>
