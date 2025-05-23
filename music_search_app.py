@@ -214,7 +214,7 @@ if search_query:
 
     if format_clean != 'All':
         pattern = 'album|compilation|comp' if format_clean == 'Album' else format_clean.lower()
-        results = results[results['Format'].str.lower().str.contains(pattern, na=False)]
+        results = results[results['Format'].fillna('').str.lower().str.contains(pattern)].str.lower().str.contains(pattern, na=False)]
 
     if results.empty:
         st.warning("No results found.")
