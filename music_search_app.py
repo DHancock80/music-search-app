@@ -213,8 +213,10 @@ if search_query:
     format_clean = format_filter.split()[0]
 
     if format_clean != 'All':
-        pattern = 'album|compilation|comp' if format_clean == 'Album' else format_clean.lower()
-        results = results[results['Format'].fillna('').str.lower().str.contains(pattern, na=False)]
+    if 'filtered_results' not in st.session_state:
+        st.session_state['filtered_results'] = results.copy()
+    pattern = 'album|compilation|comp' if format_clean == 'Album' else format_clean.lower()
+    results = st.session_state['filtered_results'][st.session_state['filtered_results']['Format'].fillna('').str.lower().str.contains(pattern, na=False)].fillna('').str.lower().str.contains(pattern, na=False)]
 
     if results.empty:
         st.warning("No results found.")
