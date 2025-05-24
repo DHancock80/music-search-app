@@ -290,6 +290,15 @@ if search_query:
             max-width: 30px !important;
             width: 30px !important;
         }
+        
+        @media (min-width: 768px) {
+            .album-info-title {
+                font-size: 20px !important;
+            }
+            .album-info-artist {
+                font-size: 15px !important;
+            }
+        }
         </style>
         """, unsafe_allow_html=True)
 
@@ -315,12 +324,12 @@ if search_query:
                     icon_url = DISCOGS_ICON_BLACK if theme == "light" else DISCOGS_ICON_WHITE
                     st.markdown(f"""
                         <div style="display:flex;justify-content:space-between;align-items:center;">
-                            <div style="font-size:16px;font-weight:600;">{title}</div>
+                            <div class="album-info-title" style="font-weight:600;">{title}</div>
                             <a href="https://www.discogs.com/release/{release_id}" target="_blank">
                                 <img src="{icon_url}" width="22" style="margin-left:10px;" />
                             </a>
                         </div>
-                        <div style="font-size:13px;"><strong>Artist:</strong> {artist}</div>
+                        <div class="album-info-artist"><strong>Artist:</strong> {artist}</div>
                     """, unsafe_allow_html=True)
 
             if not simple_view and st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
