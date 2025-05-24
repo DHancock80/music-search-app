@@ -279,14 +279,21 @@ if search_query:
         else:
             results['sort_date'] = "0000-00-00"
 
+             # Sort albums before grouping
+        album_representatives = results.drop_duplicates("release_id", keep="first").copy()
+
         if sort_choice == "A-Z":
-            results = results.sort_values(by="Title", ascending=True)
+            sorted_ids = album_representatives.sort_values(by="Title", ascending=True)["release_id"]
         elif sort_choice == "Z-A":
-            results = results.sort_values(by="Title", ascending=False)
+            sorted_ids = album_representatives.sort_values(by="Title", ascending=False)["release_id"]
         elif sort_choice == "Oldest":
-            results = results.sort_values(by="sort_date", ascending=True)
+            sorted_ids = album_representatives.sort_values(by="sort_date", ascending=True)["release_id"]
         elif sort_choice == "Newest":
-            results = results.sort_values(by="sort_date", ascending=False)
+            sorted_ids = album_representatives.sort_values(by="sort_date", ascending=False)["release_id"]
+        else:
+            sorted_ids = album_representatives["release_id"]
+
+        results = pd.concat([results[results["release_id"] == rid] for rid in sorted_ids])
 
         st.markdown("""
         <style>
