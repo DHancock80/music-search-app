@@ -279,7 +279,6 @@ if search_query:
         else:
             results['sort_date'] = "0000-00-00"
 
-             # Sort albums before grouping
         album_representatives = results.drop_duplicates("release_id", keep="first").copy()
 
         if sort_choice == "A-Z":
@@ -339,7 +338,8 @@ if search_query:
         </style>
         """, unsafe_allow_html=True)
 
-        for release_id, group in results.groupby("release_id"):
+        for release_id in sorted_ids:
+            group = results[results["release_id"] == release_id]
             first = group.iloc[0]
             cover_url = first.get("cover_art_final") or PLACEHOLDER_COVER
             artist = "Various Artists" if group["Artist"].nunique() > 1 else group["Artist"].iloc[0]
