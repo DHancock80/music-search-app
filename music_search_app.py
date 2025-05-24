@@ -402,5 +402,5 @@ else:
                 </div>
                 """, unsafe_allow_html=True)
 
-else:
+    else:
     st.caption("Please enter a search query above.")
