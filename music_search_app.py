@@ -385,7 +385,7 @@ if search_query:
                             if st.form_submit_button("Revert to original Cover Art"):
                                 reset_cover_override(release_id)
 
-            if simple_view:
+if simple_view:
     for i, row in df_display.iterrows():
         row_key = f"track_toggle_{release_id}_{i}"
         summary = f"🎵 {row['Song']} – {row['Artist']} (Disc {row['CD']}, Trk {row['Trk']})"
