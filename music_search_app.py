@@ -278,8 +278,17 @@ if search_query:
         }
 
         .stDataFrame table td, .stDataFrame table th {
-            padding: 2px 6px !important;
+            padding: 2px 4px !important;
             font-size: 10px !important;
+        }
+
+        .stDataFrame table th:nth-child(3),
+        .stDataFrame table td:nth-child(3),
+        .stDataFrame table th:nth-child(4),
+        .stDataFrame table td:nth-child(4) {
+            min-width: 30px !important;
+            max-width: 30px !important;
+            width: 30px !important;
         }
         </style>
         """, unsafe_allow_html=True)
@@ -331,8 +340,10 @@ if search_query:
                                 reset_cover_override(release_id)
             else:
                 with st.expander("Click to view tracklist"):
-                    st.dataframe(group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
+                    df_display = group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
                         'Track Title': 'Song', 'Artist': 'Artist', 'CD': 'CD', 'Track Number': 'Trk'
-                    }).reset_index(drop=True), use_container_width=True, hide_index=True)
+                    }).reset_index(drop=True)
+
+                    st.dataframe(df_display, use_container_width=True, hide_index=True)
 else:
     st.caption("Please enter a search query above.")
