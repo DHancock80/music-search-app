@@ -390,25 +390,6 @@ if search_query:
                     'Track Title': 'Song', 'Artist': 'Artist', 'CD': 'CD', 'Track Number': 'Trk'
                 }).reset_index(drop=True)
 
-                if simple_view:
-                    for i, row in df_display.iterrows():
-                        row_key = f"track_toggle_{release_id}_{i}"
-                        summary = f"🎵 {row['Song']} – {row['Artist']} (Disc {row['CD']}, Trk {row['Trk']})"
-
-                        if st.button(summary, key=row_key):
-                            toggle_key = f"{row_key}_expanded"
-                            st.session_state[toggle_key] = not st.session_state.get(toggle_key, False)
-
-                        if st.session_state.get(f"{row_key}_expanded", False):
-                            st.markdown(f"""
-                                <div style='margin:0.5rem 1rem; padding:0.5rem; background:#1e1e1e; border-radius:6px; font-size:13px; line-height:1.6em;'>
-                                    <strong>Song:</strong> {row['Song']}<br>
-                                    <strong>Artist:</strong> {row['Artist']}<br>
-                                    <strong>Disc:</strong> {row['CD']}<br>
-                                    <strong>Track:</strong> {row['Trk']}
-                                </div>
-                            """, unsafe_allow_html=True)
-                else:
-                    st.dataframe(df_display, use_container_width=True, hide_index=True)
+                st.dataframe(df_display, use_container_width=True, hide_index=True)
 else:
     st.caption("Please enter a search query above.")
