@@ -384,12 +384,23 @@ if search_query:
                         with cols[1]:
                             if st.form_submit_button("Revert to original Cover Art"):
                                 reset_cover_override(release_id)
-            else:
-                with st.expander("Click to view tracklist"):
-                    df_display = group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
-                        'Track Title': 'Song', 'Artist': 'Artist', 'CD': 'CD', 'Track Number': 'Trk'
-                    }).reset_index(drop=True)
+else:
+    with st.expander("Click to view tracklist"):
+        df_display = group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
+            'Track Title': 'Song', 'Artist': 'Artist', 'CD': 'CD', 'Track Number': 'Trk'
+        }).reset_index(drop=True)
 
-                    st.dataframe(df_display, use_container_width=True, hide_index=True)
+        for i, row in df_display.iterrows():
+            summary = f"🎵 {row['Song']} – {row['Artist']} (Disc {row['CD']}, Trk {row['Trk']})"
+            with st.expander(summary):
+                st.markdown(f"""
+                <div style='font-size:13px; line-height:1.6em;'>
+                    <strong>Song:</strong> {row['Song']}<br>
+                    <strong>Artist:</strong> {row['Artist']}<br>
+                    <strong>Disc:</strong> {row['CD']}<br>
+                    <strong>Track:</strong> {row['Trk']}
+                </div>
+                """, unsafe_allow_html=True)
+
 else:
     st.caption("Please enter a search query above.")
