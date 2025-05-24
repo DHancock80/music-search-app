@@ -272,17 +272,14 @@ if search_query:
         div[data-testid="stButton"] > button:hover {
             color: var(--primary-color);
         }
+
         .stDataFrame > div {
-            font-size: 11px !important;
+            font-size: 10px !important;
         }
-        .stDataFrame table td {
-            white-space: normal !important;
-            word-break: break-word !important;
-            padding: 2px 4px !important;
-        }
-        .stDataFrame table th {
-            font-size: 11px !important;
-            padding: 2px 4px !important;
+
+        .stDataFrame table td, .stDataFrame table th {
+            padding: 2px 6px !important;
+            font-size: 10px !important;
         }
         </style>
         """, unsafe_allow_html=True)
@@ -317,7 +314,7 @@ if search_query:
                         <div style="font-size:13px;"><strong>Artist:</strong> {artist}</div>
                     """, unsafe_allow_html=True)
 
-            if st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
+            if not simple_view and st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
                 st.session_state["open_expander_id"] = release_id if st.session_state["open_expander_id"] != release_id else None
 
             is_expanded = st.session_state.get("open_expander_id") == release_id
