@@ -279,18 +279,18 @@ if search_query:
         else:
             results['sort_date'] = "0000-00-00"
 
-        album_reps = results.drop_duplicates("release_id", keep="first").copy()
+        album_representatives = results.drop_duplicates("release_id", keep="first").copy()
 
         if sort_choice == "A-Z":
-            sorted_ids = album_reps.sort_values(by="Title", ascending=True)["release_id"]
+            sorted_ids = album_representatives.sort_values(by="Title", ascending=True)["release_id"]
         elif sort_choice == "Z-A":
-            sorted_ids = album_reps.sort_values(by="Title", ascending=False)["release_id"]
+            sorted_ids = album_representatives.sort_values(by="Title", ascending=False)["release_id"]
         elif sort_choice == "Oldest":
-            sorted_ids = album_reps.sort_values(by="sort_date", ascending=True)["release_id"]
+            sorted_ids = album_representatives.sort_values(by="sort_date", ascending=True)["release_id"]
         elif sort_choice == "Newest":
-            sorted_ids = album_reps.sort_values(by="sort_date", ascending=False)["release_id"]
+            sorted_ids = album_representatives.sort_values(by="sort_date", ascending=False)["release_id"]
         else:
-            sorted_ids = album_reps["release_id"]
+            sorted_ids = album_representatives["release_id"]
 
         results = pd.concat([results[results["release_id"] == rid] for rid in sorted_ids])
 
@@ -384,12 +384,25 @@ if search_query:
                         with cols[1]:
                             if st.form_submit_button("Revert to original Cover Art"):
                                 reset_cover_override(release_id)
-            else:
-                with st.expander("Click to view tracklist"):
-                    df_display = group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
-                        'Track Title': 'Song', 'Artist': 'Artist', 'CD': 'CD', 'Track Number': 'Trk'
-                    }).reset_index(drop=True)
 
+            with st.expander("Click to view tracklist"):
+                df_display = group[['Track Title', 'Artist', 'CD', 'Track Number']].rename(columns={
+                    'Track Title': 'Song', 'Artist': 'Artist', 'CD': 'CD', 'Track Number': 'Trk'
+                }).reset_index(drop=True)
+
+                if simple_view:
+                    for i, row in df_display.iterrows():
+                        summary = f"🎵 {row['Song']} – {row['Artist']} (Disc {row['CD']}, Trk {row['Trk']})"
+                        with st.expander(summary):
+                            st.markdown(f"""
+                                <div style='font-size:13px; line-height:1.6em;'>
+                                    <strong>Song:</strong> {row['Song']}<br>
+                                    <strong>Artist:</strong> {row['Artist']}<br>
+                                    <strong>Disc:</strong> {row['CD']}<br>
+                                    <strong>Track:</strong> {row['Trk']}
+                                </div>
+                            """, unsafe_allow_html=True)
+                else:
                     st.dataframe(df_display, use_container_width=True, hide_index=True)
 else:
     st.caption("Please enter a search query above.")
