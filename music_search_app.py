@@ -279,18 +279,18 @@ if search_query:
         else:
             results['sort_date'] = "0000-00-00"
 
-        album_representatives = results.drop_duplicates("release_id", keep="first").copy()
+        album_reps = results.drop_duplicates("release_id", keep="first").copy()
 
         if sort_choice == "A-Z":
-            sorted_ids = album_representatives.sort_values(by="Title", ascending=True)["release_id"]
+            sorted_ids = album_reps.sort_values(by="Title", ascending=True)["release_id"]
         elif sort_choice == "Z-A":
-            sorted_ids = album_representatives.sort_values(by="Title", ascending=False)["release_id"]
+            sorted_ids = album_reps.sort_values(by="Title", ascending=False)["release_id"]
         elif sort_choice == "Oldest":
-            sorted_ids = album_representatives.sort_values(by="sort_date", ascending=True)["release_id"]
+            sorted_ids = album_reps.sort_values(by="sort_date", ascending=True)["release_id"]
         elif sort_choice == "Newest":
-            sorted_ids = album_representatives.sort_values(by="sort_date", ascending=False)["release_id"]
+            sorted_ids = album_reps.sort_values(by="sort_date", ascending=False)["release_id"]
         else:
-            sorted_ids = album_representatives["release_id"]
+            sorted_ids = album_reps["release_id"]
 
         results = pd.concat([results[results["release_id"] == rid] for rid in sorted_ids])
 
@@ -369,7 +369,7 @@ if search_query:
                         <div class="album-info-artist"><strong>Artist:</strong> {artist}</div>
                     """, unsafe_allow_html=True)
 
-                        if not simple_view and st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
+            if not simple_view and st.button("Edit Cover Art", key=f"edit_btn_{release_id}"):
                 st.session_state["open_expander_id"] = release_id if st.session_state["open_expander_id"] != release_id else None
 
             is_expanded = st.session_state.get("open_expander_id") == release_id
@@ -390,18 +390,6 @@ if search_query:
                         'Track Title': 'Song', 'Artist': 'Artist', 'CD': 'CD', 'Track Number': 'Trk'
                     }).reset_index(drop=True)
 
-                    for i, row in df_display.iterrows():
-                        summary = f"🎵 {row['Song']} – {row['Artist']} (Disc {row['CD']}, Trk {row['Trk']})"
-                        with st.expander(summary):
-                            st.markdown(f"""
-                            <div style='font-size:13px; line-height:1.6em;'>
-                                <strong>Song:</strong> {row['Song']}<br>
-                                <strong>Artist:</strong> {row['Artist']}<br>
-                                <strong>Disc:</strong> {row['CD']}<br>
-                                <strong>Track:</strong> {row['Trk']}
-                            </div>
-                            """, unsafe_allow_html=True)
-
-
+                    st.dataframe(df_display, use_container_width=True, hide_index=True)
 else:
     st.caption("Please enter a search query above.")
