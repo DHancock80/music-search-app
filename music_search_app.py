@@ -258,6 +258,36 @@ if search_query:
     else:
         simple_view = st.checkbox("📱 Enable Simple View (Mobile-Friendly List)", value=False)
 
+        sort_options = ["A-Z", "Z-A", "Oldest", "Newest"]
+        sort_choice = st.radio("Sort by:", sort_options, horizontal=True)
+
+        def get_date(row):
+            date = str(row).strip()
+            if '/' in date:
+                try:
+                    parts = date.split('/')
+                    if len(parts) == 3:
+                        return f"{int(parts[2]):04d}-{int(parts[1]):02d}-{int(parts[0]):02d}"
+                except:
+                    return "0000-00-00"
+            elif date.isdigit():
+                return f"{int(date):04d}-01-01"
+            return "0000-00-00"
+
+        if 'Released' in results.columns:
+            results['sort_date'] = results['Released'].apply(get_date)
+        else:
+            results['sort_date'] = "0000-00-00"
+
+        if sort_choice == "A-Z":
+            results = results.sort_values(by="Title", ascending=True)
+        elif sort_choice == "Z-A":
+            results = results.sort_values(by="Title", ascending=False)
+        elif sort_choice == "Oldest":
+            results = results.sort_values(by="sort_date", ascending=True)
+        elif sort_choice == "Newest":
+            results = results.sort_values(by="sort_date", ascending=False)
+
         st.markdown("""
         <style>
         div[data-testid="stButton"] > button {
@@ -290,7 +320,7 @@ if search_query:
             max-width: 30px !important;
             width: 30px !important;
         }
-        
+
         @media (min-width: 768px) {
             .album-info-title {
                 font-size: 20px !important;
