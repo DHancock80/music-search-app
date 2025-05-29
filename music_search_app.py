@@ -193,22 +193,43 @@ if st.button("🔄 New Search (Clear)"):
 search_type = st.radio("Search by:", ["All", "Song Title", "Artist", "Album"], horizontal=True, key="search_type")
 df = load_data()
 
-# === Improved Autocomplete Function ===
-def get_autocomplete_suggestions(prefix):
-    prefix = prefix.lower()
+def get_autocomplete_suggestions(prefix: str):
+    prefix = prefix.strip().lower()
     if not prefix:
         return []
 
-    all_values = set(df['Track Title'].dropna().tolist() + df['Artist'].dropna().tolist() + df['Title'].dropna().tolist())
-    suggestions = sorted(all_values, key=lambda x: (
-        0 if x.lower() == prefix else
-        1 if x.lower().startswith(prefix) else
-        2 if prefix in x.lower() else
-        3
-    ))
+    search_type = st.session_state.get("search_type", "All")
 
-    # Return top 25 matches max
-    return list(dict.fromkeys(suggestions))[:25]
+    # Column map
+    field_map = {
+        "Song Title": ["Track Title"],
+        "Artist": ["Artist"],
+        "Album": ["Title"],
+        "All": ["Track Title", "Artist", "Title"]
+    }
+
+    fields = field_map.get(search_type, ["Track Title"])
+    seen = set()
+    suggestions = []
+
+    for field in fields:
+        if field not in df.columns:
+            continue
+        for value in df[field].dropna().unique():
+            val_lower = value.lower().strip()
+            if val_lower in seen:
+                continue
+            if val_lower == prefix:
+                suggestions.insert(0, value)  # exact match at top
+                seen.add(val_lower)
+            elif val_lower.startswith(prefix):
+                suggestions.append(value)
+                seen.add(val_lower)
+            elif prefix in val_lower and len(suggestions) < 10:
+                suggestions.append(value)
+                seen.add(val_lower)
+
+    return suggestions[:15]  # limit to top 15
 
 # === Search Input ===
 try:
