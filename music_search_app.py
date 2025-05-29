@@ -196,43 +196,43 @@ if st.button("🔄 New Search (Clear)"):
 search_type = st.radio("Search by:", ["All", "Song Title", "Artist", "Album"], horizontal=True, key="search_type")
 df = load_data()
 
-def get_autocomplete_suggestions(prefix: str):
-    prefix = prefix.strip().lower()
-    if not prefix:
+# === Improved Autocomplete Function with Normalization ===
+import unicodedata
+import re
+
+def normalize(text):
+    if not isinstance(text, str):
+        return ""
+    text = text.lower()
+    text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('utf-8')
+    text = re.sub(r"[^\w\s]", "", text)  # remove punctuation
+    return text.strip()
+
+def get_autocomplete_suggestions(prefix):
+    prefix_norm = normalize(prefix)
+    if not prefix_norm:
         return []
 
-    search_type = st.session_state.get("search_type", "All")
+    all_values = set(df['Track Title'].dropna().tolist() + df['Artist'].dropna().tolist() + df['Title'].dropna().tolist())
+    suggestions = {}
 
-    # Column map
-    field_map = {
-        "Song Title": ["Track Title"],
-        "Artist": ["Artist"],
-        "Album": ["Title"],
-        "All": ["Track Title", "Artist", "Title"]
-    }
-
-    fields = field_map.get(search_type, ["Track Title"])
-    seen = set()
-    suggestions = []
-
-    for field in fields:
-        if field not in df.columns:
+    for val in all_values:
+        val_norm = normalize(val)
+        if prefix_norm == val_norm:
+            score = 100
+        elif val_norm.startswith(prefix_norm):
+            score = 90
+        elif prefix_norm in val_norm:
+            score = 75
+        else:
             continue
-        for value in df[field].dropna().unique():
-            val_lower = value.lower().strip()
-            if val_lower in seen:
-                continue
-            if val_lower == prefix:
-                suggestions.insert(0, value)  # exact match at top
-                seen.add(val_lower)
-            elif val_lower.startswith(prefix):
-                suggestions.append(value)
-                seen.add(val_lower)
-            elif prefix in val_lower and len(suggestions) < 10:
-                suggestions.append(value)
-                seen.add(val_lower)
 
-    return suggestions[:15]  # limit to top 15
+        score += min(len(val_norm), 50)
+        if val not in suggestions or score > suggestions[val]:
+            suggestions[val] = score
+
+    sorted_matches = sorted(suggestions.items(), key=lambda x: -x[1])
+    return [x[0] for x in sorted_matches[:25]]
 
 # === Search Input ===
 try:
