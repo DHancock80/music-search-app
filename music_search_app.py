@@ -210,6 +210,24 @@ if st.button("🔄 New Search (Clear)"):
 search_type = st.radio("Search by:", ["All", "Song Title", "Artist", "Album"], horizontal=True, key="search_type")
 df = load_data()
 
+# === Improved Autocomplete Function ===
+def get_autocomplete_suggestions(prefix):
+    prefix = prefix.lower()
+    if not prefix:
+        return []
+
+    all_values = set(df['Track Title'].dropna().tolist() + df['Artist'].dropna().tolist() + df['Title'].dropna().tolist())
+    suggestions = sorted(all_values, key=lambda x: (
+        0 if x.lower() == prefix else
+        1 if x.lower().startswith(prefix) else
+        2 if prefix in x.lower() else
+        3
+    ))
+
+    # Return top 25 matches max
+    return list(dict.fromkeys(suggestions))[:25]
+
+# === Search Input ===
 try:
     search_query = st_searchbox(get_autocomplete_suggestions, key="search_autocomplete")
     if search_query:
@@ -220,8 +238,8 @@ except Exception:
 search_query = st.session_state.get("last_query", "")
 
 if search_query:
-    search_type = st.session_state.get("search_type", "All")
     field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title", "All": None}
+    search_type = st.session_state.get("search_type", "All")
 
     if search_type == "All":
         mask = (
@@ -232,11 +250,12 @@ if search_query:
         results = df[mask]
 
     elif search_type == "Artist":
-        exact = df[df["Artist"].fillna("").str.lower() == search_query.lower()]
-        partial = df[df["Artist"].fillna("").str.lower().str.contains(search_query.lower()) & (df["Artist"].str.lower() != search_query.lower())]
-        fuzzy = df[df["Artist"].fillna("").apply(lambda x: fuzzy_match(x, search_query))]
+        exact_matches = df[df["Artist"].fillna("").str.lower() == search_query.lower()]
+        partial_matches = df[df["Artist"].fillna("").str.lower().str.contains(search_query.lower()) & (df["Artist"].str.lower() != search_query.lower())]
+        fuzzy_matches = df[df["Artist"].fillna("").apply(lambda x: fuzzy_match(x, search_query))]
 
-        results = pd.concat([exact, partial, fuzzy]).drop_duplicates(subset=["release_id", "Track Title", "Artist"])
+        combined = pd.concat([exact_matches, partial_matches, fuzzy_matches]).drop_duplicates()
+        results = combined
 
     else:
         field = field_map[search_type]
