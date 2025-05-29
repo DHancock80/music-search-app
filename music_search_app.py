@@ -151,36 +151,53 @@ def load_data():
         df = pd.DataFrame()
     return df
 
-def get_autocomplete_suggestions(prefix: str):
-    if not prefix:
+import re
+
+def normalize(text):
+    return re.sub(r'[^a-z0-9]+', '', text.lower()) if isinstance(text, str) else ''
+
+def get_autocomplete_suggestions(prefix):
+    prefix_norm = normalize(prefix)
+    if not prefix_norm:
         return []
 
-    df = load_data()
+    # Search only in relevant field
+    field_map = {
+        "Song Title": "Track Title",
+        "Artist": "Artist",
+        "Album": "Title",
+        "All": None
+    }
     search_type = st.session_state.get("search_type", "All")
-    prefix = prefix.lower()
-    results_set = set()
+    field = field_map[search_type]
 
-    def match(val):
-        val = str(val).strip()
-        return (
-            val.lower() == prefix or
-            val.lower().startswith(prefix) or
-            prefix in val.lower()
-        )
-
-    if search_type == "Song Title":
-        results_set = {v for v in df["Track Title"].dropna() if match(v)}
-    elif search_type == "Artist":
-        results_set = {v for v in df["Artist"].dropna() if match(v)}
-    elif search_type == "Album":
-        results_set = {v for v in df["Title"].dropna() if match(v)}
+    if field:
+        values = df[field].dropna().unique()
     else:
-        results_set = {
-            v for col in ["Track Title", "Artist", "Title"]
-            for v in df[col].dropna() if match(v)
-        }
+        values = pd.concat([
+            df['Track Title'].dropna(),
+            df['Artist'].dropna(),
+            df['Title'].dropna()
+        ]).unique()
 
-    return sorted(results_set)[:15]
+    scored = []
+    for val in values:
+        norm_val = normalize(val)
+        if not norm_val:
+            continue
+        if norm_val == prefix_norm:
+            score = 1000
+        elif norm_val.startswith(prefix_norm):
+            score = 950
+        elif prefix_norm in norm_val:
+            score = 900
+        else:
+            continue  # Skip weak matches
+
+        scored.append((val, score))
+
+    sorted_suggestions = sorted(scored, key=lambda x: -x[1])
+    return [val for val, _ in sorted_suggestions[:20]]
 
 # === UI ===
 st.title("Music Search App")
