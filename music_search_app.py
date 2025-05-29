@@ -151,41 +151,38 @@ def load_data():
         df = pd.DataFrame()
     return df
 
-# === Context-Aware Autocomplete (Improved) ===
+# === Improved Autocomplete Function ===
 def get_autocomplete_suggestions(prefix):
-    prefix = prefix.lower().strip()
+    prefix = prefix.strip().lower()
     if not prefix:
         return []
 
     search_type = st.session_state.get("search_type", "All")
+    field_map = {
+        "Song Title": ["Track Title"],
+        "Artist": ["Artist"],
+        "Album": ["Title"],
+        "All": ["Track Title", "Artist", "Title"]
+    }
+    fields = field_map.get(search_type, ["Track Title"])
+    values = set()
 
-    # Choose which column(s) to pull suggestions from
-    if search_type == "Song Title":
-        sources = df['Track Title'].dropna().unique()
-    elif search_type == "Artist":
-        sources = df['Artist'].dropna().unique()
-    elif search_type == "Album":
-        sources = df['Title'].dropna().unique()
-    else:
-        sources = pd.concat([
-            df['Track Title'].dropna(),
-            df['Artist'].dropna(),
-            df['Title'].dropna()
-        ]).unique()
+    for field in fields:
+        if field in df.columns:
+            values.update(df[field].dropna().astype(str).unique())
 
-    # Filter and sort
-    cleaned = [s for s in sources if isinstance(s, str)]
-    suggestions = sorted(
-        cleaned,
-        key=lambda x: (
-            0 if x.lower() == prefix else
-            1 if x.lower().startswith(prefix) else
-            2 if prefix in x.lower() else
-            3
-        )
-    )
+    def sort_key(val):
+        val_lower = val.lower()
+        if val_lower == prefix:
+            return 0
+        if val_lower.startswith(prefix):
+            return 1
+        if prefix in val_lower:
+            return 2
+        return 3
 
-    return list(dict.fromkeys(suggestions))[:25]
+    suggestions = sorted(values, key=sort_key)
+    return [s for s in suggestions if prefix in s.lower()][:15]
 
 # === UI ===
 st.title("Music Search App")
