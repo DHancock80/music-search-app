@@ -190,36 +190,42 @@ def get_autocomplete_suggestions(prefix):
     if not prefix_norm:
         return []
 
-    all_values = set(df['Track Title'].dropna().tolist() + df['Artist'].dropna().tolist() + df['Title'].dropna().tolist())
+    all_values = set(df['Track Title'].dropna().tolist() +
+                     df['Artist'].dropna().tolist() +
+                     df['Title'].dropna().tolist())
 
     norm_to_originals = {}
     for val in all_values:
         norm = normalize(val)
         if norm:
+            # Group all originals under the same normalized key
             norm_to_originals.setdefault(norm, set()).add(val)
 
     suggestions = {}
     for norm_val, originals in norm_to_originals.items():
-        similarity = fuzz.partial_ratio(prefix_norm, norm_val)
+        if not norm_val:
+            continue
 
-        # Always allow exact match, prefix, or strong partial match
         if norm_val == prefix_norm:
             score = 100
         elif norm_val.startswith(prefix_norm):
-            score = 95
-        elif similarity >= 85:
-            score = similarity
+            score = 90
+        elif prefix_norm in norm_val:
+            score = 80
         else:
-            continue  # skip unrelated suggestions
+            score = fuzz.partial_ratio(prefix_norm, norm_val)
+            if score < 70:
+                continue
 
-        score += min(len(norm_val), 30)  # slight boost for longer, specific names
+        score += min(len(norm_val), 50)
 
         for original in originals:
+            # Store the best score seen for each original suggestion
             if original not in suggestions or score > suggestions[original]:
                 suggestions[original] = score
 
     sorted_matches = sorted(suggestions.items(), key=lambda x: -x[1])
-    return [x[0] for x in sorted_matches[:20]]
+    return [x[0] for x in sorted_matches[:25]]
 
 # === Search Input ===
 try:
