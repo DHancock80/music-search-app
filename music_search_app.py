@@ -220,8 +220,8 @@ except Exception:
 search_query = st.session_state.get("last_query", "")
 
 if search_query:
-    field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title", "All": None}
     search_type = st.session_state.get("search_type", "All")
+    field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title", "All": None}
 
     if search_type == "All":
         mask = (
@@ -232,12 +232,11 @@ if search_query:
         results = df[mask]
 
     elif search_type == "Artist":
-        exact_matches = df[df["Artist"].fillna("").str.lower() == search_query.lower()]
-        partial_matches = df[df["Artist"].fillna("").str.lower().str.contains(search_query.lower()) & (df["Artist"].str.lower() != search_query.lower())]
-        fuzzy_matches = df[df["Artist"].fillna("").apply(lambda x: fuzzy_match(x, search_query))]
+        exact = df[df["Artist"].fillna("").str.lower() == search_query.lower()]
+        partial = df[df["Artist"].fillna("").str.lower().str.contains(search_query.lower()) & (df["Artist"].str.lower() != search_query.lower())]
+        fuzzy = df[df["Artist"].fillna("").apply(lambda x: fuzzy_match(x, search_query))]
 
-        combined = pd.concat([exact_matches, partial_matches, fuzzy_matches]).drop_duplicates()
-        results = combined
+        results = pd.concat([exact, partial, fuzzy]).drop_duplicates(subset=["release_id", "Track Title", "Artist"])
 
     else:
         field = field_map[search_type]
