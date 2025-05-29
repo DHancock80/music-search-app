@@ -250,12 +250,18 @@ if search_query:
         results = df[mask]
 
     elif search_type == "Artist":
-        exact_matches = df[df["Artist"].fillna("").str.lower() == search_query.lower()]
-        partial_matches = df[df["Artist"].fillna("").str.lower().str.contains(search_query.lower()) & (df["Artist"].str.lower() != search_query.lower())]
-        fuzzy_matches = df[df["Artist"].fillna("").apply(lambda x: fuzzy_match(x, search_query))]
+        artist_col = df["Artist"].fillna("")
+        exact_matches = df[artist_col.str.lower() == search_query.lower()]
 
-        combined = pd.concat([exact_matches, partial_matches, fuzzy_matches]).drop_duplicates()
-        results = combined
+        if not exact_matches.empty:
+            results = exact_matches
+        else:
+            partial_matches = df[artist_col.str.lower().str.contains(search_query.lower())]
+            if not partial_matches.empty:
+                results = partial_matches
+            else:
+                fuzzy_matches = df[artist_col.apply(lambda x: fuzzy_match(x, search_query))]
+                results = fuzzy_matches
 
     else:
         field = field_map[search_type]
