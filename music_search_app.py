@@ -177,15 +177,20 @@ def get_autocomplete_suggestions(prefix):
     else:
         fields = ["Track Title", "Artist", "Title"]
 
-    suggestions = {}
+    seen = set()
+    results = []
+
     for field in fields:
+        if field not in df.columns:
+            continue
         for val in df[field].dropna().unique():
             norm_val = normalize(val)
             if prefix_norm in norm_val:
-                suggestions[val] = -abs(len(norm_val) - len(prefix_norm))  # shorter diff is better
+                if val not in seen:
+                    seen.add(val)
+                    results.append(val)
 
-    sorted_suggestions = sorted(suggestions.items(), key=lambda x: x[1])
-    return [val for val, _ in sorted_suggestions][:25]
+    return results[:25]
 
 # === UI ===
 st.title("Music Search App")
