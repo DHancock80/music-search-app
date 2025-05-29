@@ -162,61 +162,6 @@ def normalize(text):
     text = re.sub(r"[^\w\s]", "", text)  # remove punctuation
     return text.strip()
 
-def get_autocomplete_suggestions(prefix):
-    prefix_norm = normalize(prefix)
-    if not prefix_norm:
-        return []
-
-    # Aggregate values across all relevant columns
-    fields = {
-        "All": ["Track Title", "Artist", "Title"],
-        "Song Title": ["Track Title"],
-        "Artist": ["Artist"],
-        "Album": ["Title"]
-    }
-
-    search_type = st.session_state.get("search_type", "All")
-    search_fields = fields.get(search_type, ["Track Title"])
-
-    all_values = set()
-    for field in search_fields:
-        if field in df.columns:
-            all_values.update(df[field].dropna().astype(str))
-
-    # Build normalized lookup
-    norm_to_originals = {}
-    for val in all_values:
-        norm = normalize(val)
-        if norm:
-            norm_to_originals.setdefault(norm, set()).add(val)
-
-    suggestions = {}
-    for norm_val, originals in norm_to_originals.items():
-        if not norm_val:
-            continue
-
-        # Use strong match rules first
-        if prefix_norm == norm_val:
-            score = 100
-        elif norm_val.startswith(prefix_norm):
-            score = 90
-        elif prefix_norm in norm_val:
-            score = 80
-        else:
-            score = fuzz.partial_ratio(prefix_norm, norm_val)
-            if score < 70:
-                continue
-
-        # Boost longer names slightly
-        score += min(len(norm_val), 50)
-
-        for original in originals:
-            if original not in suggestions or score > suggestions[original]:
-                suggestions[original] = score
-
-    sorted_matches = sorted(suggestions.items(), key=lambda x: -x[1])
-    return [x[0] for x in sorted_matches[:25]]
-
 # === UI ===
 st.title("Music Search App")
 
