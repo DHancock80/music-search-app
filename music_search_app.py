@@ -223,7 +223,7 @@ if search_query:
     field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title", "All": None}
     search_type = st.session_state.get("search_type", "All")
 
-   if search_type == "All":
+if search_type == "All":
     mask = (
         df["Track Title"].fillna("").apply(lambda x: fuzzy_match(x, search_query)) |
         df["Artist"].fillna("").apply(lambda x: fuzzy_match(x, search_query)) |
