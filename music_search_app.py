@@ -168,10 +168,15 @@ def get_autocomplete_suggestions(prefix):
         return []
 
     all_values = set(df['Track Title'].dropna().tolist() + df['Artist'].dropna().tolist() + df['Title'].dropna().tolist())
-    scored = []
+
+    normalized_map = {}
+    suggestions = {}
 
     for val in all_values:
         val_norm = normalize(val)
+        if not val_norm:
+            continue
+
         if prefix_norm == val_norm:
             score = 100
         elif val_norm.startswith(prefix_norm):
@@ -179,10 +184,15 @@ def get_autocomplete_suggestions(prefix):
         elif prefix_norm in val_norm:
             score = 75
         else:
-            continue  # skip unrelated suggestions
-        scored.append((val, score))
+            continue
 
-    sorted_matches = sorted(scored, key=lambda x: -x[1])
+        score += min(len(val_norm), 50)
+
+        # Keep highest scoring original value per normalized form
+        if val_norm not in suggestions or score > suggestions[val_norm][1]:
+            suggestions[val_norm] = (val, score)
+
+    sorted_matches = sorted(suggestions.values(), key=lambda x: -x[1])
     return [x[0] for x in sorted_matches[:25]]
 
 # === UI ===
