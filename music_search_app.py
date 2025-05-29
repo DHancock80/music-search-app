@@ -163,24 +163,27 @@ def normalize(text):
     return text.strip()
 
 def get_autocomplete_suggestions(prefix):
-    if not isinstance(prefix, str) or not prefix.strip():
+    prefix_norm = normalize(prefix)
+    if not prefix_norm:
         return []
 
-    def generate_variants(s):
-        s = s.strip()
-        variants = set([s])
-        s_nopunct = re.sub(r"[^\w\s]", "", s)
-        s_nospaces = s.replace(" ", "")
-        s_dots = s.replace(" ", ".")
-        s_space_after_dot = s.replace(".", ". ")
-        variants.update([s_nopunct, s_nospaces, s_dots, s_space_after_dot])
-        return set(normalize(v) for v in variants if v)
+    # Aggregate values across all relevant columns
+    fields = {
+        "All": ["Track Title", "Artist", "Title"],
+        "Song Title": ["Track Title"],
+        "Artist": ["Artist"],
+        "Album": ["Title"]
+    }
 
-    prefix_variants = generate_variants(prefix)
-    all_values = set(df['Track Title'].dropna().tolist() +
-                     df['Artist'].dropna().tolist() +
-                     df['Title'].dropna().tolist())
+    search_type = st.session_state.get("search_type", "All")
+    search_fields = fields.get(search_type, ["Track Title"])
 
+    all_values = set()
+    for field in search_fields:
+        if field in df.columns:
+            all_values.update(df[field].dropna().astype(str))
+
+    # Build normalized lookup
     norm_to_originals = {}
     for val in all_values:
         norm = normalize(val)
@@ -189,13 +192,27 @@ def get_autocomplete_suggestions(prefix):
 
     suggestions = {}
     for norm_val, originals in norm_to_originals.items():
-        if any(variant in norm_val for variant in prefix_variants):
-            score = max(fuzz.partial_ratio(variant, norm_val) for variant in prefix_variants)
-            if score >= 70:
-                score += min(len(norm_val), 50)
-                for original in originals:
-                    if original not in suggestions or score > suggestions[original]:
-                        suggestions[original] = score
+        if not norm_val:
+            continue
+
+        # Use strong match rules first
+        if prefix_norm == norm_val:
+            score = 100
+        elif norm_val.startswith(prefix_norm):
+            score = 90
+        elif prefix_norm in norm_val:
+            score = 80
+        else:
+            score = fuzz.partial_ratio(prefix_norm, norm_val)
+            if score < 70:
+                continue
+
+        # Boost longer names slightly
+        score += min(len(norm_val), 50)
+
+        for original in originals:
+            if original not in suggestions or score > suggestions[original]:
+                suggestions[original] = score
 
     sorted_matches = sorted(suggestions.items(), key=lambda x: -x[1])
     return [x[0] for x in sorted_matches[:25]]
