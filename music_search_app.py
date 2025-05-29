@@ -151,46 +151,39 @@ def load_data():
         df = pd.DataFrame()
     return df
 
+import unicodedata
 import re
 
 def normalize(text):
-    return re.sub(r'[^a-z0-9]+', '', text.lower()) if isinstance(text, str) else ''
+    if not isinstance(text, str):
+        return ""
+    text = text.lower()
+    text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('utf-8')
+    text = re.sub(r"[^\w\s]", "", text)  # remove punctuation
+    return text.strip()
 
 def get_autocomplete_suggestions(prefix):
-    if not prefix:
-        return []
-
     prefix_norm = normalize(prefix)
     if not prefix_norm:
         return []
 
-    search_type = st.session_state.get("search_type", "All")
-    field_map = {
-        "Song Title": "Track Title",
-        "Artist": "Artist",
-        "Album": "Title",
-        "All": None
-    }
+    all_values = set(df['Track Title'].dropna().tolist() + df['Artist'].dropna().tolist() + df['Title'].dropna().tolist())
+    scored = []
 
-    if field_map[search_type]:
-        fields = [field_map[search_type]]
-    else:
-        fields = ["Track Title", "Artist", "Title"]
+    for val in all_values:
+        val_norm = normalize(val)
+        if prefix_norm == val_norm:
+            score = 100
+        elif val_norm.startswith(prefix_norm):
+            score = 90
+        elif prefix_norm in val_norm:
+            score = 75
+        else:
+            continue  # skip unrelated suggestions
+        scored.append((val, score))
 
-    seen = set()
-    results = []
-
-    for field in fields:
-        if field not in df.columns:
-            continue
-        for val in df[field].dropna().unique():
-            norm_val = normalize(val)
-            if prefix_norm in norm_val:
-                if val not in seen:
-                    seen.add(val)
-                    results.append(val)
-
-    return results[:25]
+    sorted_matches = sorted(scored, key=lambda x: -x[1])
+    return [x[0] for x in sorted_matches[:25]]
 
 # === UI ===
 st.title("Music Search App")
