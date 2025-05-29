@@ -151,53 +151,41 @@ def load_data():
         df = pd.DataFrame()
     return df
 
-def get_autocomplete_suggestions(prefix: str):
-    df = load_data()
-    search_type = st.session_state.get('search_type', 'All')
-    normalized_prefix = normalize(prefix)
+# === Context-Aware Autocomplete (Improved) ===
+def get_autocomplete_suggestions(prefix):
+    prefix = prefix.lower().strip()
+    if not prefix:
+        return []
 
-    field_map = {
-        "Song Title": ["Track Title"],
-        "Artist": ["Artist"],
-        "Album": ["Title"],
-        "All": ["Track Title", "Artist", "Title"]
-    }
+    search_type = st.session_state.get("search_type", "All")
 
-    fields = field_map.get(search_type, ["Track Title"])
-    suggestions = {}
+    # Choose which column(s) to pull suggestions from
+    if search_type == "Song Title":
+        sources = df['Track Title'].dropna().unique()
+    elif search_type == "Artist":
+        sources = df['Artist'].dropna().unique()
+    elif search_type == "Album":
+        sources = df['Title'].dropna().unique()
+    else:
+        sources = pd.concat([
+            df['Track Title'].dropna(),
+            df['Artist'].dropna(),
+            df['Title'].dropna()
+        ]).unique()
 
-    for field in fields:
-        if field not in df.columns:
-            continue
-        for val in df[field].dropna().astype(str).unique():
-            norm_val = normalize(val)
-            if not norm_val: continue
-            words = norm_val.split()
+    # Filter and sort
+    cleaned = [s for s in sources if isinstance(s, str)]
+    suggestions = sorted(
+        cleaned,
+        key=lambda x: (
+            0 if x.lower() == prefix else
+            1 if x.lower().startswith(prefix) else
+            2 if prefix in x.lower() else
+            3
+        )
+    )
 
-            # Scoring logic
-            if norm_val == normalized_prefix:
-                score = 1000
-            elif norm_val.startswith(normalized_prefix):
-                score = 950
-            elif words and words[0] == normalized_prefix:
-                score = 925
-            elif normalized_prefix in words:
-                score = 900
-            else:
-                score = fuzz.partial_ratio(norm_val, normalized_prefix)
-
-            # Penalize very short entries
-            if len(norm_val) < 4:
-                score -= 200
-
-            # Boost longer more descriptive titles
-            score += min(len(norm_val), 50)
-
-            if val not in suggestions or score > suggestions[val]:
-                suggestions[val] = score
-
-    sorted_matches = sorted(suggestions.items(), key=lambda x: -x[1])
-    return [x[0] for x in sorted_matches[:15]]
+    return list(dict.fromkeys(suggestions))[:25]
 
 # === UI ===
 st.title("Music Search App")
