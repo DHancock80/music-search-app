@@ -223,15 +223,26 @@ if search_query:
     field_map = {"Song Title": "Track Title", "Artist": "Artist", "Album": "Title", "All": None}
     search_type = st.session_state.get("search_type", "All")
 
-    if search_type == "All":
-        mask = (
-            df["Track Title"].fillna("").apply(lambda x: fuzzy_match(x, search_query)) |
-            df["Artist"].fillna("").apply(lambda x: fuzzy_match(x, search_query)) |
-            df["Title"].fillna("").apply(lambda x: fuzzy_match(x, search_query))
-        )
-        results = df[mask]
+   if search_type == "All":
+    mask = (
+        df["Track Title"].fillna("").apply(lambda x: fuzzy_match(x, search_query)) |
+        df["Artist"].fillna("").apply(lambda x: fuzzy_match(x, search_query)) |
+        df["Title"].fillna("").apply(lambda x: fuzzy_match(x, search_query))
+    )
+    results = df[mask]
+else:
+    field = field_map[search_type]
+
+    if field == "Artist":
+        search_lower = search_query.lower().strip()
+        artist_series = df["Artist"].fillna("").str.lower()
+
+        exact_matches = df[artist_series == search_lower]
+        partial_matches = df[artist_series.str.contains(rf'\b{re.escape(search_lower)}\b', na=False)]
+        fuzzy_matches = df[artist_series.apply(lambda x: fuzzy_match(x, search_lower))]
+
+        results = pd.concat([exact_matches, partial_matches, fuzzy_matches]).drop_duplicates()
     else:
-        field = field_map[search_type]
         results = df[df[field].fillna("").apply(lambda x: fuzzy_match(x, search_query))]
 
     unique_releases = results[['release_id', 'Format']].drop_duplicates()
