@@ -157,47 +157,35 @@ def normalize(text):
     return re.sub(r'[^a-z0-9]+', '', text.lower()) if isinstance(text, str) else ''
 
 def get_autocomplete_suggestions(prefix):
+    if not prefix:
+        return []
+
     prefix_norm = normalize(prefix)
     if not prefix_norm:
         return []
 
-    # Search only in relevant field
+    search_type = st.session_state.get("search_type", "All")
     field_map = {
         "Song Title": "Track Title",
         "Artist": "Artist",
         "Album": "Title",
         "All": None
     }
-    search_type = st.session_state.get("search_type", "All")
-    field = field_map[search_type]
 
-    if field:
-        values = df[field].dropna().unique()
+    if field_map[search_type]:
+        fields = [field_map[search_type]]
     else:
-        values = pd.concat([
-            df['Track Title'].dropna(),
-            df['Artist'].dropna(),
-            df['Title'].dropna()
-        ]).unique()
+        fields = ["Track Title", "Artist", "Title"]
 
-    scored = []
-    for val in values:
-        norm_val = normalize(val)
-        if not norm_val:
-            continue
-        if norm_val == prefix_norm:
-            score = 1000
-        elif norm_val.startswith(prefix_norm):
-            score = 950
-        elif prefix_norm in norm_val:
-            score = 900
-        else:
-            continue  # Skip weak matches
+    suggestions = {}
+    for field in fields:
+        for val in df[field].dropna().unique():
+            norm_val = normalize(val)
+            if prefix_norm in norm_val:
+                suggestions[val] = -abs(len(norm_val) - len(prefix_norm))  # shorter diff is better
 
-        scored.append((val, score))
-
-    sorted_suggestions = sorted(scored, key=lambda x: -x[1])
-    return [val for val, _ in sorted_suggestions[:20]]
+    sorted_suggestions = sorted(suggestions.items(), key=lambda x: x[1])
+    return [val for val, _ in sorted_suggestions][:25]
 
 # === UI ===
 st.title("Music Search App")
