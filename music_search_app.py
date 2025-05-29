@@ -151,38 +151,36 @@ def load_data():
         df = pd.DataFrame()
     return df
 
-# === Improved Autocomplete Function ===
-def get_autocomplete_suggestions(prefix):
-    prefix = prefix.strip().lower()
+def get_autocomplete_suggestions(prefix: str):
     if not prefix:
         return []
 
+    df = load_data()
     search_type = st.session_state.get("search_type", "All")
-    field_map = {
-        "Song Title": ["Track Title"],
-        "Artist": ["Artist"],
-        "Album": ["Title"],
-        "All": ["Track Title", "Artist", "Title"]
-    }
-    fields = field_map.get(search_type, ["Track Title"])
-    values = set()
+    prefix = prefix.lower()
+    results_set = set()
 
-    for field in fields:
-        if field in df.columns:
-            values.update(df[field].dropna().astype(str).unique())
+    def match(val):
+        val = str(val).strip()
+        return (
+            val.lower() == prefix or
+            val.lower().startswith(prefix) or
+            prefix in val.lower()
+        )
 
-    def sort_key(val):
-        val_lower = val.lower()
-        if val_lower == prefix:
-            return 0
-        if val_lower.startswith(prefix):
-            return 1
-        if prefix in val_lower:
-            return 2
-        return 3
+    if search_type == "Song Title":
+        results_set = {v for v in df["Track Title"].dropna() if match(v)}
+    elif search_type == "Artist":
+        results_set = {v for v in df["Artist"].dropna() if match(v)}
+    elif search_type == "Album":
+        results_set = {v for v in df["Title"].dropna() if match(v)}
+    else:
+        results_set = {
+            v for col in ["Track Title", "Artist", "Title"]
+            for v in df[col].dropna() if match(v)
+        }
 
-    suggestions = sorted(values, key=sort_key)
-    return [s for s in suggestions if prefix in s.lower()][:15]
+    return sorted(results_set)[:15]
 
 # === UI ===
 st.title("Music Search App")
