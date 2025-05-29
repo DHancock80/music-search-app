@@ -163,35 +163,39 @@ def normalize(text):
     return text.strip()
 
 def get_autocomplete_suggestions(prefix):
-    prefix_norm = normalize(prefix)
-    if not prefix_norm:
+    if not isinstance(prefix, str) or not prefix.strip():
         return []
 
-    all_values = set(df['Track Title'].dropna().tolist() + df['Artist'].dropna().tolist() + df['Title'].dropna().tolist())
-    
-    # Map normalized values to original values
+    def generate_variants(s):
+        s = s.strip()
+        variants = set([s])
+        s_nopunct = re.sub(r"[^\w\s]", "", s)
+        s_nospaces = s.replace(" ", "")
+        s_dots = s.replace(" ", ".")
+        s_space_after_dot = s.replace(".", ". ")
+        variants.update([s_nopunct, s_nospaces, s_dots, s_space_after_dot])
+        return set(normalize(v) for v in variants if v)
+
+    prefix_variants = generate_variants(prefix)
+    all_values = set(df['Track Title'].dropna().tolist() +
+                     df['Artist'].dropna().tolist() +
+                     df['Title'].dropna().tolist())
+
     norm_to_originals = {}
     for val in all_values:
         norm = normalize(val)
         if norm:
-            norm_to_originals.setdefault(norm, []).append(val)
+            norm_to_originals.setdefault(norm, set()).add(val)
 
     suggestions = {}
     for norm_val, originals in norm_to_originals.items():
-        if prefix_norm == norm_val:
-            score = 100
-        elif norm_val.startswith(prefix_norm):
-            score = 90
-        elif prefix_norm in norm_val:
-            score = 75
-        else:
-            continue
-
-        score += min(len(norm_val), 50)
-
-        for original in originals:
-            if original not in suggestions or score > suggestions[original]:
-                suggestions[original] = score
+        if any(variant in norm_val for variant in prefix_variants):
+            score = max(fuzz.partial_ratio(variant, norm_val) for variant in prefix_variants)
+            if score >= 70:
+                score += min(len(norm_val), 50)
+                for original in originals:
+                    if original not in suggestions or score > suggestions[original]:
+                        suggestions[original] = score
 
     sorted_matches = sorted(suggestions.items(), key=lambda x: -x[1])
     return [x[0] for x in sorted_matches[:25]]
